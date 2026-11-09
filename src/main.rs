@@ -45,6 +45,7 @@ struct SYSTEMTIME {
 #[link(name = "user32")]
 extern "system" {
     fn GetLastInputInfo(plii: *mut LASTINPUTINFO) -> i32;
+    fn keybd_event(b_vk: u8, b_scan: u8, dw_flags: u32, dw_extra_info: usize);
 }
 
 #[link(name = "kernel32")]
@@ -355,29 +356,51 @@ async fn fetch_wikipedia_search(query: &str) -> Option<String> {
 // --- SKILLS FRAMEWORK: Windows Native System Skills ---
 fn execute_system_skill(command: &str) -> Option<&'static str> {
     let cmd = command.to_lowercase();
-    if cmd.contains("play musik") || cmd.contains("pause musik") || cmd.contains("setel lagu") || cmd.contains("jeda lagu") {
-        // Virtual Key Media Play/Pause (0xB3) via PowerShell
-        let _ = Command::new("powershell")
-            .arg("-Command")
-            .arg("$wsh = New-Object -ComObject WScript.Shell; $wsh.SendKeys([char]179)")
-            .spawn();
-        Some("Mengontrol pemutaran media musik...")
-    } else if cmd.contains("kecilkan suara") || cmd.contains("volume turun") {
-        let _ = Command::new("powershell")
-            .arg("-Command")
-            .arg("$wsh = New-Object -ComObject WScript.Shell; 1..5 | ForEach-Object { $wsh.SendKeys([char]174) }")
-            .spawn();
+    
+    // 1. Kontrol Volume Audio Windows (Native Win32 VK_VOLUME_DOWN & VK_VOLUME_UP)
+    if cmd.contains("kecilkan suara") || cmd.contains("kecilkan volume") || cmd.contains("volume turun") || cmd.contains("turunkan volume") || cmd.contains("pelankan") {
+        unsafe {
+            for _ in 0..6 {
+                keybd_event(0xAE, 0, 0, 0);
+                keybd_event(0xAE, 0, 2, 0);
+            }
+        }
         Some("Menurunkan volume sistem audio...")
-    } else if cmd.contains("besarkan suara") || cmd.contains("volume naik") {
-        let _ = Command::new("powershell")
-            .arg("-Command")
-            .arg("$wsh = New-Object -ComObject WScript.Shell; 1..5 | ForEach-Object { $wsh.SendKeys([char]175) }")
-            .spawn();
+    } else if cmd.contains("besarkan suara") || cmd.contains("besarkan volume") || cmd.contains("volume naik") || cmd.contains("naikkan volume") || cmd.contains("kencangkan") {
+        unsafe {
+            for _ in 0..6 {
+                keybd_event(0xAF, 0, 0, 0);
+                keybd_event(0xAF, 0, 2, 0);
+            }
+        }
         Some("Menaikkan volume sistem audio...")
-    } else if cmd.contains("buka notepad") {
+    } 
+    // 2. Play / Pause Media Global (VK_MEDIA_PLAY_PAUSE)
+    else if cmd.contains("pause musik") || cmd.contains("jeda lagu") || cmd.contains("pause lagu") || cmd.contains("jeda musik") || cmd.contains("stop musik") {
+        unsafe {
+            keybd_event(0xB3, 0, 0, 0);
+            keybd_event(0xB3, 0, 2, 0);
+        }
+        Some("Menjeda pemutaran musik...")
+    } 
+    // 3. YouTube Music Web Launcher (Tanpa Perlu Install Aplikasi Spotify / Client Apapun!)
+    else if cmd.contains("putar musik") || cmd.contains("puterin musik") || cmd.contains("setel musik") || cmd.contains("play musik") || cmd.contains("putar lagu") || cmd.contains("puterin lagu") || cmd.contains("setel lagu") || cmd.contains("play lagu") || cmd.contains("youtube music") || cmd.contains("yt music") {
+        // Cek apakah ada query lagu spesifik (misal "putar lagu lofi")
+        let target_url = if cmd.contains("lofi") {
+            "https://music.youtube.com/search?q=lofi+chill"
+        } else if cmd.contains("jepang") || cmd.contains("anime") {
+            "https://music.youtube.com/search?q=japanese+chill"
+        } else {
+            "https://music.youtube.com"
+        };
+        let _ = Command::new("cmd").arg("/c").arg("start").arg(target_url).spawn();
+        Some("Membuka YouTube Music di browser...")
+    } 
+    // 4. Aplikasi Produktivitas Windows Cepat
+    else if cmd.contains("buka notepad") || cmd.contains("catatan") {
         let _ = Command::new("cmd").arg("/c").arg("start notepad").spawn();
         Some("Membuka aplikasi Notepad...")
-    } else if cmd.contains("buka kalkulator") {
+    } else if cmd.contains("buka kalkulator") || cmd.contains("kalkulator") {
         let _ = Command::new("cmd").arg("/c").arg("start calc").spawn();
         Some("Membuka kalkulator...")
     } else {
