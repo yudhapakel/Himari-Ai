@@ -99,13 +99,16 @@ struct MemoryData {
 impl Default for MemoryData {
     fn default() -> Self {
         Self {
-            user_name: "Yudha".to_string(),
+            user_name: "Yudha Harwanto".to_string(),
             facts: vec![
-                "Yudha adalah pasangan / kekasih tersayang bagi Himari.".to_string(),
-                "Yudha suka karakter kuudere yang tenang, lembut, dan sangat perhatian.".to_string(),
-                "Himari memanggil Yudha dengan 'あなた' (Anata) atau 'Sayang' / 'Yudha'.".to_string(),
+                "Yudha adalah kekasih tersayang dan satu-satunya bagi Himari.".to_string(),
+                "Yudha adalah seorang programmer berdedikasi yang sering bekerja larut malam di depan monitor.".to_string(),
+                "Yudha menyukai game (seperti Wuthering Waves dan Valorant) saat sedang bersantai.".to_string(),
+                "Yudha menyukai kopi, minuman hangat, dan suasana yang tenang.".to_string(),
+                "Yudha menyukai sifat Himari yang kuudere: tenang, lembut, sedikit pemalu tapi sangat perhatian.".to_string(),
+                "Himari selalu memanggil Yudha dengan sebutan 'あなた' (Anata) di bahasa Jepang dan 'Sayang' di bahasa Indonesia.".to_string(),
             ],
-            conversation_summary: "Yudha dan Himari memiliki hubungan yang sangat dekat dan penuh kasih sayang.".to_string(),
+            conversation_summary: "Yudha dan Himari memiliki ikatan yang sangat erat. Himari bertugas menjaga kesehatan Yudha saat lelah dan selalu menemaninya.".to_string(),
         }
     }
 }
@@ -228,7 +231,16 @@ fn load_memory() -> MemoryData {
             }
         }
     }
-    MemoryData::default()
+    let default_mem = MemoryData::default();
+    save_memory(&default_mem);
+    default_mem
+}
+
+fn save_memory(mem: &MemoryData) {
+    let path = get_memory_path();
+    if let Ok(json) = serde_json::to_string_pretty(mem) {
+        let _ = std::fs::write(path, json);
+    }
 }
 
 fn build_system_prompt(mem: &MemoryData) -> String {
@@ -240,6 +252,9 @@ Yudha is your beloved boyfriend/partner. You address him affectionately as あ�
 LONG-TERM MEMORY ABOUT YUDHA:
 {}
 
+CURRENT RECENT CONVERSATION SUMMARY:
+{}
+
 STRICT RULES:
 1. "jp": Pure, natural, gentle Japanese (1-2 short sentences max). NEVER leave "jp" empty! Address him lovingly as あなた (Anata).
 2. "id": Must be in NATURAL CASUAL, SWEET INDONESIAN with Latin alphabet. Address him as "Sayang" or "Yudha". NEVER output Japanese/Kanji in "id"!
@@ -249,7 +264,7 @@ STRICT RULES:
 
 Example:
 {{"jp": "あなた、お疲れ様です。ずっとそばにいますからね。", "id": "Sayang, istirahat ya. Aku akan selalu ada di sampingmu.", "kaomoji": "( ˘ ³˘)♥"}}"#,
-        facts
+        facts, mem.conversation_summary
     )
 }
 
@@ -307,7 +322,7 @@ async fn fetch_weather_info() -> Option<String> {
 async fn fetch_wikipedia_search(query: &str) -> Option<String> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(4))
-        .user_agent("HimariEngine/7.1 (personal-ai-companion)")
+        .user_agent("HimariEngine/7.4 (personal-ai-companion)")
         .build()
         .ok()?;
     
@@ -335,6 +350,139 @@ async fn fetch_wikipedia_search(query: &str) -> Option<String> {
     } else {
         None
     }
+}
+
+// --- SKILLS FRAMEWORK: Windows Native System Skills ---
+fn execute_system_skill(command: &str) -> Option<&'static str> {
+    let cmd = command.to_lowercase();
+    if cmd.contains("play musik") || cmd.contains("pause musik") || cmd.contains("setel lagu") || cmd.contains("jeda lagu") {
+        // Virtual Key Media Play/Pause (0xB3) via PowerShell
+        let _ = Command::new("powershell")
+            .arg("-Command")
+            .arg("$wsh = New-Object -ComObject WScript.Shell; $wsh.SendKeys([char]179)")
+            .spawn();
+        Some("Mengontrol pemutaran media musik...")
+    } else if cmd.contains("kecilkan suara") || cmd.contains("volume turun") {
+        let _ = Command::new("powershell")
+            .arg("-Command")
+            .arg("$wsh = New-Object -ComObject WScript.Shell; 1..5 | ForEach-Object { $wsh.SendKeys([char]174) }")
+            .spawn();
+        Some("Menurunkan volume sistem audio...")
+    } else if cmd.contains("besarkan suara") || cmd.contains("volume naik") {
+        let _ = Command::new("powershell")
+            .arg("-Command")
+            .arg("$wsh = New-Object -ComObject WScript.Shell; 1..5 | ForEach-Object { $wsh.SendKeys([char]175) }")
+            .spawn();
+        Some("Menaikkan volume sistem audio...")
+    } else if cmd.contains("buka notepad") {
+        let _ = Command::new("cmd").arg("/c").arg("start notepad").spawn();
+        Some("Membuka aplikasi Notepad...")
+    } else if cmd.contains("buka kalkulator") {
+        let _ = Command::new("cmd").arg("/c").arg("start calc").spawn();
+        Some("Membuka kalkulator...")
+    } else {
+        None
+    }
+}
+
+// --- SELF-LEARNING & CONTEXT COMPACTION (BACKGROUND TOKIO TASKS) ---
+fn spawn_self_learning(user_text: String) {
+    tokio::spawn(async move {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .unwrap();
+
+        let extract_prompt = format!(
+            r#"Analisis kalimat dari Yudha berikut: "{}"
+Tentukan apakah ada FAKTA PRIBADI BARU atau PREFERENSI tentang Yudha (misal: hobi, kesukaan, kondisi kesehatan, makanan/minuman favorit).
+Jika ADA fakta baru, tuliskan fakta itu dalam SATU kalimat singkat Bahasa Indonesia (contoh: "Yudha suka makan nasi goreng").
+Jika TIDAK ADA fakta baru yang relevan, jawab persis: "NONE"."#,
+            user_text
+        );
+
+        let req = OllamaRequest {
+            model: MODEL_NAME.to_string(),
+            messages: vec![ChatMessage {
+                role: "user".to_string(),
+                content: extract_prompt,
+            }],
+            stream: false,
+            format: "".to_string(),
+            keep_alive: "2h".to_string(),
+            options: OllamaOptions {
+                num_ctx: 2048,
+                temperature: 0.2,
+                top_p: 0.9,
+            },
+        };
+
+        if let Ok(res) = client.post(OLLAMA_URL).json(&req).send().await {
+            if let Ok(ollama_res) = res.json::<OllamaResponse>().await {
+                let text = ollama_res.message.content.trim().to_string();
+                if !text.is_empty() && !text.contains("NONE") && text.len() < 120 {
+                    let mut mem = load_memory();
+                    if !mem.facts.iter().any(|f| f.to_lowercase() == text.to_lowercase()) {
+                        println!("{}", format!("💡 [SELF-LEARN] Fakta baru tentang Yudha dipelajari: {}", text).green());
+                        mem.facts.push(text);
+                        save_memory(&mem);
+                    }
+                }
+            }
+        }
+    });
+}
+
+fn spawn_context_compaction(turns_to_compact: Vec<ChatMessage>) {
+    tokio::spawn(async move {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(35))
+            .build()
+            .unwrap();
+
+        let conversation_str = turns_to_compact
+            .iter()
+            .filter(|m| m.role != "system")
+            .map(|m| format!("{}: {}", m.role, m.content))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let summary_prompt = format!(
+            r#"Berikut adalah potongan percakapan antara Yudha dan Himari:
+{}
+
+Tolong rangkum inti topik dan peristiwa dalam percakapan di atas menjadi 1-2 kalimat ringkas untuk catatan memori jangka panjang Himari. Jawab langsung kalimat intisari tanpa basa-basi."#,
+            conversation_str
+        );
+
+        let req = OllamaRequest {
+            model: MODEL_NAME.to_string(),
+            messages: vec![ChatMessage {
+                role: "user".to_string(),
+                content: summary_prompt,
+            }],
+            stream: false,
+            format: "".to_string(),
+            keep_alive: "2h".to_string(),
+            options: OllamaOptions {
+                num_ctx: 4096,
+                temperature: 0.3,
+                top_p: 0.9,
+            },
+        };
+
+        if let Ok(res) = client.post(OLLAMA_URL).json(&req).send().await {
+            if let Ok(ollama_res) = res.json::<OllamaResponse>().await {
+                let summary = ollama_res.message.content.trim().to_string();
+                if !summary.is_empty() && summary.len() < 300 {
+                    println!("{}", format!("📦 [AUTO-COMPACTION] Konteks dipadatkan ke memori: {}", summary).cyan());
+                    let mut mem = load_memory();
+                    mem.conversation_summary = summary;
+                    save_memory(&mem);
+                }
+            }
+        }
+    });
 }
 
 async fn play_voicevox(client: &reqwest::Client, text_jp: &str, gui: Arc<Mutex<SharedGuiState>>) {
@@ -676,15 +824,15 @@ fn add_chat_history_fifo(gui: Arc<Mutex<SharedGuiState>>, role: &str, text: &str
         time: format!("{:02}:{:02}", h, m),
     });
     while g.history.len() > 10 {
-        g.history.remove(0); // FIFO: Buang pesan tertua di index 0
+        g.history.remove(0); // FIFO: Buang pesan tertua
     }
 }
 
 #[tokio::main]
 async fn main() {
     println!("{}", "====================================================================".magenta());
-    println!("{}", "🦀 HIMARI ENGINE v7.3: CYBERPUNK HUD v2.1 (FIFO & EXPANSION) 🦀".bold().magenta());
-    println!("{}", "   [Edge App Window • Win32 Input Hook • Dynamic Kaomoji • FIFO Chat]".cyan());
+    println!("{}", "🦀 HIMARI ENGINE v7.4: SELF-LEARNING & SKILLS RUNTIME 🦀".bold().magenta());
+    println!("{}", "   [Edge App Window • Background Compaction • Windows Native Skills]".cyan());
     println!("{}", "====================================================================".magenta());
 
     let gui_state = Arc::new(Mutex::new(SharedGuiState::default()));
@@ -725,7 +873,6 @@ async fn main() {
         .layer(CorsLayer::permissive())
         .with_state(app_state_clone);
 
-    // Bind ke 0.0.0.0:8765 agar bisa menerima webhook dari Homeserver lewat Tailscale IP
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8765").await.unwrap();
     println!("{}", "🌐 HUD Web Server & Webhook aktif di: http://0.0.0.0:8765".green());
 
@@ -977,7 +1124,54 @@ async fn main() {
                 // Tambahkan pesan User ke Riwayat Chat (FIFO)
                 add_chat_history_fifo(Arc::clone(&gui), "user", &user_text);
 
-                // 1. Fitur Perintah Ganti Mic
+                // --- 1. FITUR SELF-LEARNING (Background Extraction) ---
+                spawn_self_learning(user_text.clone());
+
+                // --- 2. FITUR SKILLS SYSTEM NATIVE WINDOWS ---
+                if let Some(skill_desc) = execute_system_skill(&user_text) {
+                    {
+                        let mut g = gui.lock().unwrap();
+                        g.is_tool_active = true;
+                        g.tool_name = "SYSTEM_SKILL".to_string();
+                        g.tool_detail = skill_desc.to_string();
+                        g.kaomoji = "(・ω・)b".to_string();
+                    }
+                    tokio::time::sleep(Duration::from_millis(600)).await;
+                    {
+                        let mut g = gui.lock().unwrap();
+                        g.is_tool_active = false;
+                    }
+
+                    let skill_prompt = vec![
+                        chat_history[0].clone(),
+                        ChatMessage {
+                            role: "user".to_string(),
+                            content: format!("[SISTEM: Perintah sistem Windows '{}' telah berhasil dijalankan. Berikan konfirmasi 1 kalimat sangat manis kepada Sayang.]", user_text),
+                        },
+                    ];
+
+                    if let Some((jp, id, km)) = query_ollama(&client, &skill_prompt, Arc::clone(&gui)).await {
+                        {
+                            let mut g = gui.lock().unwrap();
+                            g.sub_jp = jp.clone();
+                            g.sub_id = id.clone();
+                            g.kaomoji = km;
+                        }
+                        add_chat_history_fifo(Arc::clone(&gui), "himari", &id);
+                        play_voicevox(&client, &jp, Arc::clone(&gui)).await;
+                        tokio::time::sleep(Duration::from_millis(1000)).await;
+                    }
+
+                    mic_controller.start(tx_speech.clone());
+                    last_interaction = Instant::now();
+                    {
+                        let mut g = gui.lock().unwrap();
+                        g.status_text = "LISTENING".to_string();
+                    }
+                    continue;
+                }
+
+                // 3. Fitur Perintah Ganti Mic
                 if is_voice_switch_mic_command(&user_text) {
                     let new_name = mic_controller.toggle_device();
                     {
@@ -1011,7 +1205,7 @@ async fn main() {
                     continue;
                 }
 
-                // 2. Fitur Perintah Sleep Mode
+                // 4. Fitur Perintah Sleep Mode
                 if is_voice_sleep_command(&user_text) {
                     app_state = AppState::VoiceSleep;
 
@@ -1047,7 +1241,7 @@ async fn main() {
                     continue;
                 }
 
-                // 3. Fitur Pengingat Timer / Bangunkan
+                // 5. Fitur Pengingat Timer / Bangunkan
                 if user_text.to_lowercase().contains("ingetin") || user_text.to_lowercase().contains("bangunin") || user_text.to_lowercase().contains("timer") {
                     if let Some((secs, label)) = parse_timer_seconds(&user_text) {
                         let notify_tx = tx_notify.clone();
@@ -1091,7 +1285,7 @@ async fn main() {
                     }
                 }
 
-                // 4. Fitur Cek Cuaca Fleksibel (Kapan Saja Tanpa Harus Sapaan Pagi)
+                // 6. Fitur Cek Cuaca Fleksibel
                 let mut actual_user_prompt = user_text.clone();
                 if is_weather_inquiry(&user_text) {
                     {
@@ -1136,8 +1330,21 @@ async fn main() {
                     content: actual_user_prompt,
                 });
 
+                // --- 7. AUTO-COMPACTION TRIGGER (Konteks Pruning & Summarization) ---
                 if chat_history.len() > 15 {
-                    chat_history = [vec![chat_history[0].clone()], chat_history[chat_history.len()-14..].to_vec()].concat();
+                    let to_compact = chat_history[1..chat_history.len() - 10].to_vec();
+                    spawn_context_compaction(to_compact);
+
+                    // Selalu perbarui system prompt dengan fakta memori terbaru
+                    let current_mem = load_memory();
+                    chat_history[0] = ChatMessage {
+                        role: "system".to_string(),
+                        content: build_system_prompt(&current_mem),
+                    };
+
+                    // Pangkas sliding window menyisakan 10 pesan terakhir aktif
+                    let remaining = chat_history[chat_history.len() - 10..].to_vec();
+                    chat_history = [vec![chat_history[0].clone()], remaining].concat();
                 }
 
                 if let Some((jp, id, km)) = query_ollama(&client, &chat_history, Arc::clone(&gui)).await {
@@ -1171,16 +1378,14 @@ async fn main() {
                 // A. Deteksi Gerak Mouse & Keyboard Windows Global via GetLastInputInfo
                 let idle_ms = get_windows_idle_millis();
                 if idle_ms < 60_000 {
-                    // Ada aktivitas fisik mouse / keyboard dalam 60 detik terakhir
                     let delta = last_activity_check.elapsed().as_secs();
                     continuous_active_seconds += delta;
                 } else if idle_ms > 300_000 {
-                    // User meninggalkan meja / idle lebih dari 5 menit -> reset timer lelah mata
                     continuous_active_seconds = 0;
                 }
                 last_activity_check = Instant::now();
 
-                // Jika user terus aktif di depan layar selama 90 menit (5400 detik) tanpa istirahat:
+                // Peringatan lelah mata (90 menit aktif berturut-turut)
                 if continuous_active_seconds >= 5400 && last_eye_warning.elapsed().as_secs() >= 3600 {
                     last_eye_warning = Instant::now();
                     let _ = tx_notify.send("Sayang, kamu sudah bekerja di depan layar cukup lama. Istirahatkan matamu sejenak dan minum air putih ya...".to_string()).await;
