@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>HIMARI SCI-FI CORE // JARVIS HUD</title>
+  <title>HIMARI SCI-FI CORE // JARVIS HUD v7.3</title>
   <style>
     * {
       margin: 0;
@@ -37,8 +37,8 @@
     /* Top HUD Header */
     header {
       position: relative;
-      z-index: 10;
-      padding: 16px 24px;
+      z-index: 20;
+      padding: 14px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -47,14 +47,14 @@
       backdrop-filter: blur(12px);
     }
     .hud-title {
-      font-size: 16px;
+      font-size: 15px;
       letter-spacing: 2px;
       font-weight: 700;
       color: #38bdf8;
       text-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
     .hud-title .dot {
       width: 10px;
@@ -64,20 +64,32 @@
       box-shadow: 0 0 10px #38bdf8;
       transition: all 0.3s ease;
     }
+    .kaomoji-badge {
+      font-size: 15px;
+      color: #f472b6;
+      background: rgba(244, 114, 182, 0.15);
+      border: 1px solid rgba(244, 114, 182, 0.35);
+      padding: 3px 12px;
+      border-radius: 12px;
+      text-shadow: 0 0 12px rgba(244, 114, 182, 0.6);
+      font-weight: bold;
+      letter-spacing: 0;
+      transition: all 0.3s ease;
+    }
     .hud-meta {
       display: flex;
-      gap: 12px;
+      gap: 10px;
       font-size: 13px;
       font-family: monospace;
     }
     .hud-badge {
       background: rgba(15, 23, 42, 0.85);
       border: 1px solid rgba(56, 189, 248, 0.25);
-      padding: 6px 14px;
+      padding: 5px 12px;
       border-radius: 6px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       cursor: pointer;
       transition: all 0.2s ease;
       font-weight: 600;
@@ -99,26 +111,28 @@
       box-shadow: 0 0 14px rgba(239, 68, 68, 0.4);
     }
     .hud-badge.btn-switch {
-      color: #34d399;
-      border-color: rgba(16, 185, 129, 0.3);
+      color: #38bdf8;
+    }
+    .hud-badge.btn-history {
+      color: #a78bfa;
+      border-color: rgba(167, 139, 250, 0.3);
     }
 
-    /* Center Visualizer Canvas */
+    /* Visualizer Center Canvas */
     .visualizer-container {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -54%);
-      width: 440px;
-      height: 440px;
-      z-index: 5;
+      position: relative;
+      flex: 1;
       display: flex;
       justify-content: center;
       align-items: center;
+      z-index: 10;
     }
-    canvas {
-      width: 100%;
-      height: 100%;
+    #coreCanvas {
+      filter: drop-shadow(0 0 24px rgba(56, 189, 248, 0.35));
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .visualizer-container.tool-active #coreCanvas {
+      transform: translateX(-140px) scale(0.92);
     }
     .core-status-box {
       position: absolute;
@@ -128,54 +142,57 @@
       flex-direction: column;
       align-items: center;
       gap: 4px;
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .visualizer-container.tool-active .core-status-box {
+      transform: translateX(-140px);
     }
     .core-status-label {
-      font-family: monospace;
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: 3px;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 4px;
       color: #38bdf8;
-      text-shadow: 0 0 14px rgba(56, 189, 248, 0.8);
+      text-shadow: 0 0 16px rgba(56, 189, 248, 0.8);
       transition: all 0.3s ease;
     }
     .core-sub-label {
-      font-family: monospace;
       font-size: 11px;
       letter-spacing: 1.5px;
       color: #94a3b8;
+      font-family: monospace;
     }
 
-    /* Subtitle & Chat Area */
+    /* Subtitle Glass Box */
     footer {
       position: relative;
-      z-index: 10;
-      padding: 16px 28px 20px;
+      z-index: 20;
+      padding: 12px 28px 16px;
     }
     .subtitle-card {
-      background: rgba(11, 19, 38, 0.8);
+      background: rgba(11, 19, 38, 0.85);
       border: 1px solid rgba(56, 189, 248, 0.25);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 0 16px rgba(56, 189, 248, 0.05);
       border-radius: 12px;
-      padding: 18px 24px;
+      padding: 14px 20px;
       backdrop-filter: blur(16px);
       transition: all 0.3s ease;
     }
     .sub-jp {
-      font-size: 21px;
+      font-size: 20px;
       font-weight: 600;
       color: #f472b6;
       text-shadow: 0 0 16px rgba(244, 114, 182, 0.45);
-      margin-bottom: 8px;
-      min-height: 28px;
-      line-height: 1.4;
+      margin-bottom: 6px;
+      min-height: 26px;
+      line-height: 1.35;
       font-family: 'Yu Gothic', 'Hiragino Sans', 'Meiryo', sans-serif;
     }
     .sub-id {
-      font-size: 16px;
+      font-size: 15px;
       color: #f8fafc;
       font-weight: 400;
-      min-height: 24px;
-      line-height: 1.5;
+      min-height: 22px;
+      line-height: 1.45;
     }
     .sub-id span.master {
       color: #fbbf24;
@@ -188,20 +205,168 @@
 
     /* Bottom Control Bar */
     .controls-hint {
-      margin-top: 10px;
+      margin-top: 8px;
       display: flex;
       justify-content: space-between;
-      font-size: 12px;
+      font-size: 11px;
       color: #64748b;
       font-family: monospace;
     }
     .key-tag {
       background: rgba(30, 41, 59, 0.8);
       border: 1px solid rgba(148, 163, 184, 0.3);
-      padding: 2px 7px;
+      padding: 2px 6px;
       border-radius: 4px;
       color: #cbd5e1;
       font-weight: 600;
+    }
+
+    /* --- Cyberpunk Side Expansion Tool Progress Panel (Emerges from behind Core) --- */
+    .tool-expansion-card {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 320px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid #38bdf8;
+      box-shadow: 0 0 32px rgba(56, 189, 248, 0.35), inset 0 0 16px rgba(56, 189, 248, 0.1);
+      border-radius: 12px;
+      padding: 20px;
+      backdrop-filter: blur(16px);
+      z-index: 5;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, -50%) scale(0.6);
+      transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .tool-expansion-card.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate(60px, -50%) scale(1);
+    }
+    .tool-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #38bdf8;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+      padding-bottom: 6px;
+    }
+    .tool-card-detail {
+      font-size: 13px;
+      color: #cbd5e1;
+      margin-bottom: 16px;
+      line-height: 1.4;
+      min-height: 38px;
+    }
+    .tool-progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(30, 41, 59, 0.9);
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      position: relative;
+    }
+    .tool-progress-bar-fill {
+      height: 100%;
+      width: 45%;
+      background: linear-gradient(90deg, #0284c7, #38bdf8, #f472b6);
+      border-radius: 3px;
+      animation: progressPulse 1.2s infinite ease-in-out;
+    }
+    @keyframes progressPulse {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(300%); }
+    }
+
+    /* --- Chat History Drawer --- */
+    .history-drawer {
+      position: absolute;
+      top: 0; right: -380px;
+      width: 380px;
+      height: 100vh;
+      background: rgba(8, 14, 26, 0.96);
+      border-left: 1px solid rgba(56, 189, 248, 0.3);
+      box-shadow: -12px 0 32px rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(24px);
+      z-index: 40;
+      transition: right 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+    }
+    .history-drawer.open {
+      right: 0;
+    }
+    .history-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: #a78bfa;
+      letter-spacing: 1.5px;
+    }
+    .history-close-btn {
+      cursor: pointer;
+      font-size: 16px;
+      color: #94a3b8;
+      transition: 0.2s;
+    }
+    .history-close-btn:hover {
+      color: #f472b6;
+    }
+    .history-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .history-body::-webkit-scrollbar {
+      width: 5px;
+    }
+    .history-body::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.3);
+      border-radius: 4px;
+    }
+    .chat-bubble {
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.4;
+      max-width: 92%;
+      word-break: break-word;
+      animation: fadeIn 0.2s ease forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .chat-bubble.user {
+      align-self: flex-end;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fef3c7;
+    }
+    .chat-bubble.himari {
+      align-self: flex-start;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #e0f2fe;
+    }
+    .chat-bubble-time {
+      font-size: 10px;
+      color: #94a3b8;
+      margin-top: 4px;
+      text-align: right;
     }
   </style>
 </head>
@@ -211,45 +376,77 @@
   <header>
     <div class="hud-title">
       <div class="dot" id="hudDot"></div>
-      <span>HIMARI CORE // HUD v5.2</span>
+      <span>HIMARI CORE // HUD v7.3</span>
+      <span class="kaomoji-badge" id="hudKaomoji">(｡•̀ᴗ-)✧</span>
     </div>
     <div class="hud-meta">
+      <div class="hud-badge btn-history" id="btnHistory">📜 RIWAYAT CHAT</div>
       <div class="hud-badge btn-mute" id="btnMute">🔇 MUTE [M]</div>
       <div class="hud-badge btn-switch" id="btnSwitch">🔄 SWITCH MIC [S]</div>
     </div>
   </header>
 
-  <!-- Jarvis Visualizer Canvas -->
-  <div class="visualizer-container">
-    <canvas id="coreCanvas" width="440" height="440"></canvas>
+  <!-- Jarvis Visualizer Canvas & Emergent Tool Panel -->
+  <div class="visualizer-container" id="visualizerContainer">
+    <canvas id="coreCanvas" width="420" height="420"></canvas>
     <div class="core-status-box">
       <div class="core-status-label" id="coreLabel">ONLINE</div>
       <div class="core-sub-label" id="micDeviceSub">MIC: IEM (USB AUDIO)</div>
+    </div>
+
+    <!-- Cyberpunk Tool Progress Card (Emerges from behind Core to the right) -->
+    <div class="tool-expansion-card" id="toolExpansionCard">
+      <div class="tool-card-header">
+        <span>🌐 TOOL EXECUTION PROGRESS</span>
+      </div>
+      <div class="tool-card-detail" id="toolDetailText">Mencari informasi di internet...</div>
+      <div class="tool-progress-bar-bg">
+        <div class="tool-progress-bar-fill"></div>
+      </div>
     </div>
   </div>
 
   <!-- Subtitle Glass Box -->
   <footer>
     <div class="subtitle-card">
-      <div class="sub-jp" id="subJp">マスター、お疲れ様です。そばにいますね。</div>
-      <div class="sub-id" id="subId"><span class="himari">Himari:</span> "Master, istirahat ya. Aku akan tetap di sampingmu."</div>
+      <div class="sub-jp" id="subJp">あなた、お疲れ様です。そばにいますね。</div>
+      <div class="sub-id" id="subId"><span class="himari">Himari:</span> "Sayang, istirahat ya. Aku akan selalu ada di sampingmu."</div>
     </div>
     <div class="controls-hint">
-      <div>Klik tombol di atas atau tekan <span class="key-tag">M</span> Mute &nbsp;|&nbsp; <span class="key-tag">S</span> Ganti Mic (PC/HP)</div>
+      <div>Tekan <span class="key-tag">H</span> Riwayat &nbsp;|&nbsp; <span class="key-tag">M</span> Mute &nbsp;|&nbsp; <span class="key-tag">S</span> Ganti Mic (PC/HP)</div>
       <div>Tekan <span class="key-tag">ESC</span> Keluar Aplikasi</div>
     </div>
   </footer>
 
+  <!-- History Drawer -->
+  <div class="history-drawer" id="historyDrawer">
+    <div class="history-header">
+      <span>💬 RIWAYAT 10 PESAN TERAKHIR (FIFO)</span>
+      <span class="history-close-btn" id="historyCloseBtn">✖</span>
+    </div>
+    <div class="history-body" id="historyList">
+      <!-- Chat bubbles injected via JS -->
+    </div>
+  </div>
+
   <script>
     const canvas = document.getElementById('coreCanvas');
     const ctx = canvas.getContext('2d');
+    const visualizerContainer = document.getElementById('visualizerContainer');
     const coreLabel = document.getElementById('coreLabel');
     const micDeviceSub = document.getElementById('micDeviceSub');
     const subJp = document.getElementById('subJp');
     const subId = document.getElementById('subId');
     const hudDot = document.getElementById('hudDot');
+    const hudKaomoji = document.getElementById('hudKaomoji');
     const btnMute = document.getElementById('btnMute');
     const btnSwitch = document.getElementById('btnSwitch');
+    const btnHistory = document.getElementById('btnHistory');
+    const historyDrawer = document.getElementById('historyDrawer');
+    const historyCloseBtn = document.getElementById('historyCloseBtn');
+    const historyList = document.getElementById('historyList');
+    const toolExpansionCard = document.getElementById('toolExpansionCard');
+    const toolDetailText = document.getElementById('toolDetailText');
 
     let state = {
       status_text: 'ONLINE',
@@ -259,18 +456,35 @@
       is_speaking: false,
       is_thinking: false,
       is_muted: false,
-      is_sleeping: false
+      is_sleeping: false,
+      is_tool_active: false,
+      tool_name: '',
+      tool_detail: '',
+      kaomoji: '(｡•̀ᴗ-)✧',
+      history: []
     };
 
     let rotation = 0;
     let pulse = 0;
 
-    // Klik tombol Mute di layar
+    // Toggle Chat History Drawer
+    function toggleDrawer(open) {
+      if (open === undefined) {
+        historyDrawer.classList.toggle('open');
+      } else if (open) {
+        historyDrawer.classList.add('open');
+      } else {
+        historyDrawer.classList.remove('open');
+      }
+    }
+
+    btnHistory.addEventListener('click', () => toggleDrawer());
+    historyCloseBtn.addEventListener('click', () => toggleDrawer(false));
+
     btnMute.addEventListener('click', () => {
       fetch('/api/action/mute', { method: 'POST' });
     });
 
-    // Klik tombol Switch Mic di layar
     btnSwitch.addEventListener('click', () => {
       fetch('/api/action/switch', { method: 'POST' });
     });
@@ -282,11 +496,43 @@
         fetch('/api/action/mute', { method: 'POST' });
       } else if (key === 's') {
         fetch('/api/action/switch', { method: 'POST' });
+      } else if (key === 'h') {
+        toggleDrawer();
       } else if (key === 'escape') {
-        await fetch('/api/action/exit', { method: 'POST' });
-        window.close();
+        if (historyDrawer.classList.contains('open')) {
+          toggleDrawer(false);
+        } else {
+          await fetch('/api/action/exit', { method: 'POST' });
+          window.close();
+        }
       }
     });
+
+    // Update Chat History List dengan Fingerprint Compare agar FIFO selalu ter-render mulus
+    let lastHistoryFingerprint = '';
+    function updateHistoryUI(history) {
+      if (!history || history.length === 0) {
+        historyList.innerHTML = '<div style="color:#64748b; text-align:center; margin-top:20px; font-size:12px;">Belum ada percakapan...</div>';
+        lastHistoryFingerprint = '';
+        return;
+      }
+      
+      const currentFingerprint = history.map(item => `${item.role}:${item.text}:${item.time}`).join('|');
+      if (currentFingerprint === lastHistoryFingerprint) return;
+      lastHistoryFingerprint = currentFingerprint;
+
+      historyList.innerHTML = '';
+      history.forEach(item => {
+        const bubble = document.createElement('div');
+        bubble.className = `chat-bubble ${item.role === 'user' ? 'user' : 'himari'}`;
+        bubble.innerHTML = `
+          <div><strong>${item.role === 'user' ? 'Sayang' : 'Himari'}:</strong> ${item.text}</div>
+          <div class="chat-bubble-time">${item.time || ''}</div>
+        `;
+        historyList.appendChild(bubble);
+      });
+      historyList.scrollTop = historyList.scrollHeight;
+    }
 
     // Render Animasi Canvas Geometri Jarvis
     function render() {
@@ -295,27 +541,27 @@
       const cy = canvas.height / 2;
 
       let speed = 0.012;
-      let themeColor = '#38bdf8'; // Cyan Default (ONLINE / LISTENING)
+      let themeColor = '#38bdf8'; // Cyan Default
       let glowColor = 'rgba(56, 189, 248, 0.4)';
 
       if (state.is_muted) {
-        themeColor = '#ef4444'; // Red (MUTED)
+        themeColor = '#ef4444'; // Red
         glowColor = 'rgba(239, 68, 68, 0.5)';
         speed = 0.004;
       } else if (state.is_sleeping) {
-        themeColor = '#a855f7'; // Purple (SLEEP MODE / TIDUR)
+        themeColor = '#a855f7'; // Purple
         glowColor = 'rgba(168, 85, 247, 0.4)';
         speed = 0.006;
       } else if (state.status_text === 'STANDBY') {
-        themeColor = '#64748b'; // Slate Gray (STANDBY IDLE)
+        themeColor = '#64748b'; // Slate Gray
         glowColor = 'rgba(100, 116, 139, 0.4)';
         speed = 0.008;
       } else if (state.is_thinking) {
-        themeColor = '#f59e0b'; // Gold (QWEN 14B PROCESSING)
+        themeColor = '#f59e0b'; // Gold
         glowColor = 'rgba(245, 158, 11, 0.6)';
         speed = 0.04;
       } else if (state.is_speaking) {
-        themeColor = '#06b6d4'; // Bright Cyan (VOICEVOX SPEAKING)
+        themeColor = '#06b6d4'; // Bright Cyan
         glowColor = 'rgba(6, 182, 212, 0.7)';
         speed = 0.025;
       }
@@ -324,8 +570,8 @@
       pulse += 0.05;
 
       const dynamicRadius = state.is_speaking 
-        ? 88 + Math.sin(pulse * 3) * 12 
-        : (state.is_thinking ? 88 + Math.cos(pulse * 6) * 6 : 82 + Math.sin(pulse) * 3);
+        ? 86 + Math.sin(pulse * 3) * 12 
+        : (state.is_thinking ? 86 + Math.cos(pulse * 6) * 6 : 80 + Math.sin(pulse) * 3);
 
       ctx.save();
       ctx.shadowBlur = 18;
@@ -338,136 +584,137 @@
       ctx.arc(cx, cy, dynamicRadius + 44, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Middle Theme Ring
+      // Rotating Outer Hexagon
       ctx.strokeStyle = themeColor;
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(cx, cy, dynamicRadius + 20, 0, Math.PI * 2);
+      for (let i = 0; i < 6; i++) {
+        const angle = rotation + (i * Math.PI / 3);
+        const x = cx + Math.cos(angle) * (dynamicRadius + 24);
+        const y = cy + Math.sin(angle) * (dynamicRadius + 24);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
       ctx.stroke();
 
-      // Inner Core Fill
-      ctx.fillStyle = glowColor.replace('0.', '0.08');
+      // Counter-rotating Inner Triangle
+      ctx.strokeStyle = glowColor;
+      ctx.lineWidth = 1.8;
       ctx.beginPath();
-      ctx.arc(cx, cy, dynamicRadius - 10, 0, Math.PI * 2);
-      ctx.fill();
+      for (let i = 0; i < 3; i++) {
+        const angle = -rotation * 1.5 + (i * 2 * Math.PI / 3);
+        const x = cx + Math.cos(angle) * (dynamicRadius - 10);
+        const y = cy + Math.sin(angle) * (dynamicRadius - 10);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.stroke();
 
-      // Rotating Hexagonal Data Ring
-      const numNodes = 6;
-      ctx.lineWidth = 1.5;
-      for (let i = 0; i < numNodes; i++) {
-        const angle = rotation + (i * Math.PI * 2 / numNodes);
-        const x = cx + Math.cos(angle) * (dynamicRadius + 20);
-        const y = cy + Math.sin(angle) * (dynamicRadius + 20);
+      // Pulsing Core Circle
+      ctx.beginPath();
+      ctx.arc(cx, cy, dynamicRadius, 0, Math.PI * 2);
+      ctx.stroke();
 
+      // Tech Orbit Nodes
+      for (let i = 0; i < 4; i++) {
+        const nodeAngle = rotation * 2 + (i * Math.PI / 2);
+        const nx = cx + Math.cos(nodeAngle) * (dynamicRadius + 44);
+        const ny = cy + Math.sin(nodeAngle) * (dynamicRadius + 44);
         ctx.fillStyle = themeColor;
         ctx.beginPath();
-        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.arc(nx, ny, 3, 0, Math.PI * 2);
         ctx.fill();
-
-        const nextAngle = rotation + ((i + 1) * Math.PI * 2 / numNodes);
-        const nx = cx + Math.cos(nextAngle) * (dynamicRadius + 20);
-        const ny = cy + Math.sin(nextAngle) * (dynamicRadius + 20);
-
-        ctx.strokeStyle = themeColor;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(nx, ny);
-        ctx.stroke();
-      }
-
-      // Counter-rotating Inner Sacred Triangles
-      for (let i = 0; i < 3; i++) {
-        const angle = -rotation * 1.6 + (i * Math.PI * 2 / 3);
-        const x1 = cx + Math.cos(angle) * (dynamicRadius - 25);
-        const y1 = cy + Math.sin(angle) * (dynamicRadius - 25);
-        const nextAngle = -rotation * 1.6 + ((i + 1) * Math.PI * 2 / 3);
-        const x2 = cx + Math.cos(nextAngle) * (dynamicRadius - 25);
-        const y2 = cy + Math.sin(nextAngle) * (dynamicRadius - 25);
-
-        ctx.strokeStyle = themeColor;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
       }
 
       ctx.restore();
       requestAnimationFrame(render);
     }
+    requestAnimationFrame(render);
 
-    // Polling State Sinkronisasi dari Rust Backend
+    // Sync State Real-Time dari Rust Backend (200ms)
     async function syncState() {
       try {
         const res = await fetch('/api/state');
         if (res.ok) {
-          const data = await res.json();
-          state = data;
+          state = await res.json();
 
-          // 1. Tentukan Label Status yang Akurat
-          let displayStatus = state.status_text;
+          // 1. Label Status & Warna
           if (state.is_muted) {
-            displayStatus = 'MIC MUTED';
-          } else if (state.is_sleeping) {
-            displayStatus = 'SLEEP MODE';
-          } else if (state.is_thinking) {
-            displayStatus = 'THINKING...';
-          } else if (state.is_speaking) {
-            displayStatus = 'SPEAKING...';
-          }
-
-          coreLabel.innerText = displayStatus;
-          micDeviceSub.innerText = `MIC: ${state.mic_device.toUpperCase()}`;
-          btnSwitch.innerText = `🔄 ${state.mic_device.toUpperCase()}`;
-
-          // 2. Tombol Mute State
-          if (state.is_muted) {
+            coreLabel.innerText = 'MIC MUTED';
+            coreLabel.style.color = '#ef4444';
             btnMute.classList.add('active');
             btnMute.innerText = '🔴 UNMUTE [M]';
-            coreLabel.style.color = '#ef4444';
             hudDot.style.background = '#ef4444';
-            hudDot.style.boxShadow = '0 0 12px #ef4444';
-          } else {
+            hudDot.style.boxShadow = '0 0 10px #ef4444';
+          } else if (state.is_sleeping) {
+            coreLabel.innerText = 'SLEEP MODE';
+            coreLabel.style.color = '#a855f7';
             btnMute.classList.remove('active');
             btnMute.innerText = '🔇 MUTE [M]';
-            if (state.is_sleeping) {
-              coreLabel.style.color = '#a855f7';
-              hudDot.style.background = '#a855f7';
-              hudDot.style.boxShadow = '0 0 12px #a855f7';
-            } else if (state.status_text === 'STANDBY') {
-              coreLabel.style.color = '#94a3b8';
-              hudDot.style.background = '#94a3b8';
-              hudDot.style.boxShadow = '0 0 8px #94a3b8';
-            } else if (state.is_thinking) {
-              coreLabel.style.color = '#f59e0b';
-              hudDot.style.background = '#f59e0b';
-              hudDot.style.boxShadow = '0 0 14px #f59e0b';
-            } else if (state.is_speaking) {
-              coreLabel.style.color = '#06b6d4';
-              hudDot.style.background = '#06b6d4';
-              hudDot.style.boxShadow = '0 0 14px #06b6d4';
+            hudDot.style.background = '#a855f7';
+            hudDot.style.boxShadow = '0 0 10px #a855f7';
+          } else if (state.is_speaking) {
+            coreLabel.innerText = 'SPEAKING...';
+            coreLabel.style.color = '#06b6d4';
+            btnMute.classList.remove('active');
+            btnMute.innerText = '🔇 MUTE [M]';
+            hudDot.style.background = '#06b6d4';
+            hudDot.style.boxShadow = '0 0 10px #06b6d4';
+          } else if (state.is_thinking) {
+            coreLabel.innerText = 'THINKING...';
+            coreLabel.style.color = '#f59e0b';
+            btnMute.classList.remove('active');
+            btnMute.innerText = '🔇 MUTE [M]';
+            hudDot.style.background = '#f59e0b';
+            hudDot.style.boxShadow = '0 0 10px #f59e0b';
+          } else {
+            coreLabel.innerText = state.status_text;
+            coreLabel.style.color = state.status_text === 'STANDBY' ? '#64748b' : '#38bdf8';
+            btnMute.classList.remove('active');
+            btnMute.innerText = '🔇 MUTE [M]';
+            hudDot.style.background = state.status_text === 'STANDBY' ? '#64748b' : '#38bdf8';
+            hudDot.style.boxShadow = state.status_text === 'STANDBY' ? '0 0 10px #64748b' : '0 0 10px #38bdf8';
+          }
+
+          micDeviceSub.innerText = `MIC: ${state.mic_device.toUpperCase()}`;
+          hudKaomoji.innerText = state.kaomoji || '(｡•̀ᴗ-)✧';
+
+          // 2. Subtitle Update
+          if (state.sub_jp && state.sub_jp.trim().length > 0) {
+            subJp.innerText = state.sub_jp;
+          }
+          if (state.sub_id && state.sub_id.trim().length > 0) {
+            if (state.sub_id.startsWith('Sayang:') || state.sub_id.startsWith('Master:')) {
+              subId.innerHTML = `<span class="master">Sayang:</span> ${state.sub_id.replace(/^Sayang:|^Master:/, '')}`;
+            } else if (state.sub_id.startsWith('Notifikasi:')) {
+              subId.innerHTML = `<span class="himari" style="color:#f59e0b;">🔔 Notifikasi:</span> ${state.sub_id.replace(/^Notifikasi:/, '')}`;
             } else {
-              coreLabel.style.color = '#38bdf8';
-              hudDot.style.background = '#38bdf8';
-              hudDot.style.boxShadow = '0 0 12px #38bdf8';
+              subId.innerHTML = `<span class="himari">Himari:</span> "${state.sub_id}"`;
             }
           }
 
-          // 3. Tampilkan Subtitle
-          if (state.sub_jp) {
-            subJp.innerText = state.sub_jp;
+          // 3. Tool Progress Expansion Panel (Emerges from behind Core to the right)
+          if (state.is_tool_active) {
+            visualizerContainer.classList.add('tool-active');
+            toolExpansionCard.classList.add('active');
+            toolDetailText.innerText = state.tool_detail || 'Memindai informasi internet...';
+          } else {
+            visualizerContainer.classList.remove('tool-active');
+            toolExpansionCard.classList.remove('active');
           }
-          if (state.sub_id) {
-            subId.innerHTML = state.sub_id.startsWith('Master:') 
-              ? `<span class="master">Master:</span> "${state.sub_id.replace(/^Master:\s*"?/, '').replace(/"?$/, '')}"`
-              : `<span class="himari">Himari:</span> "${state.sub_id.replace(/^"?/, '').replace(/"?$/, '')}"`;
-          }
+
+          // 4. Update Chat History FIFO
+          updateHistoryUI(state.history);
         }
-      } catch (e) {}
+      } catch (err) {
+        // Backend restart / compiling
+      }
     }
 
     setInterval(syncState, 200);
-    render();
+    syncState();
   </script>
 </body>
 </html>

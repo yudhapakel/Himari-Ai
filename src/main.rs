@@ -122,6 +122,8 @@ struct HimariResponse {
     jp: String,
     #[serde(default)]
     id: String,
+    #[serde(default)]
+    kaomoji: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -155,6 +157,13 @@ enum AppState {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+struct ChatHistoryEntry {
+    role: String,
+    text: String,
+    time: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 struct SharedGuiState {
     status_text: String,
     sub_jp: String,
@@ -164,6 +173,11 @@ struct SharedGuiState {
     is_thinking: bool,
     is_muted: bool,
     is_sleeping: bool,
+    is_tool_active: bool,
+    tool_name: String,
+    tool_detail: String,
+    kaomoji: String,
+    history: Vec<ChatHistoryEntry>,
 }
 
 impl Default for SharedGuiState {
@@ -177,6 +191,11 @@ impl Default for SharedGuiState {
             is_thinking: false,
             is_muted: false,
             is_sleeping: false,
+            is_tool_active: false,
+            tool_name: "".to_string(),
+            tool_detail: "".to_string(),
+            kaomoji: "(｡•̀ᴗ-)✧".to_string(),
+            history: Vec::new(),
         }
     }
 }
@@ -224,11 +243,12 @@ LONG-TERM MEMORY ABOUT YUDHA:
 STRICT RULES:
 1. "jp": Pure, natural, gentle Japanese (1-2 short sentences max). NEVER leave "jp" empty! Address him lovingly as あなた (Anata).
 2. "id": Must be in NATURAL CASUAL, SWEET INDONESIAN with Latin alphabet. Address him as "Sayang" or "Yudha". NEVER output Japanese/Kanji in "id"!
-3. Tone: Calm kuudere, gentle, slightly shy but deeply devoted, warm, and romantic.
-4. Response MUST be valid JSON only.
+3. "kaomoji": Pick one matching cute anime kaomoji for your reaction (e.g. (｡•̀ᴗ-)✧, (*/ω＼*), ( ˘ ³˘)♥, (,,>﹏<,,), (´｡• ω •｡`), (・ω・)b).
+4. Tone: Calm kuudere, gentle, slightly shy but deeply devoted, warm, and romantic.
+5. Response MUST be valid JSON only.
 
 Example:
-{{"jp": "あなた、お疲れ様です。ずっとそばにいますからね。", "id": "Sayang, istirahat ya. Aku akan selalu ada di sampingmu."}}"#,
+{{"jp": "あなた、お疲れ様です。ずっとそばにいますからね。", "id": "Sayang, istirahat ya. Aku akan selalu ada di sampingmu.", "kaomoji": "( ˘ ³˘)♥"}}"#,
         facts
     )
 }
@@ -251,6 +271,25 @@ fn clean_indonesian_subtitle(text: &str, jp_text: &str) -> String {
     }
 }
 
+fn infer_kaomoji_fallback(text: &str) -> &'static str {
+    let t = text.to_lowercase();
+    if t.contains("cinta") || t.contains("sayang") || t.contains("suka") || t.contains("peluk") || t.contains("cium") {
+        "( ˘ ³˘)♥"
+    } else if t.contains("senang") || t.contains("lucu") || t.contains("makasih") || t.contains("terima kasih") {
+        "(´｡• ω •｡`)"
+    } else if t.contains("malu") || t.contains("blush") || t.contains("rahasia") {
+        "(*/ω＼*)"
+    } else if t.contains("khawatir") || t.contains("lelah") || t.contains("sakit") || t.contains("pusing") || t.contains("istirahat") {
+        "(,,>﹏<,,)"
+    } else if t.contains("tidur") || t.contains("ngantuk") || t.contains("malam") {
+        "(っ- ‸ -ς)ᶻᶻ"
+    } else if t.contains("siap") || t.contains("bisa") || t.contains("oke") || t.contains("baiklah") {
+        "(｡•̀ᴗ-)✧"
+    } else {
+        "(・ω・)b"
+    }
+}
+
 async fn fetch_weather_info() -> Option<String> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(3))
@@ -260,6 +299,39 @@ async fn fetch_weather_info() -> Option<String> {
     if res.status().is_success() {
         let text = res.text().await.ok()?;
         Some(text.trim().to_string())
+    } else {
+        None
+    }
+}
+
+async fn fetch_wikipedia_search(query: &str) -> Option<String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(4))
+        .user_agent("HimariEngine/7.1 (personal-ai-companion)")
+        .build()
+        .ok()?;
+    
+    let url = format!(
+        "https://id.wikipedia.org/w/api.php?action=query&list=search&srsearch={}&format=json&utf8=1&srlimit=1",
+        urlencoding::encode(query)
+    );
+
+    let res = client.get(&url).send().await.ok()?;
+    if !res.status().is_success() {
+        return None;
+    }
+
+    let json: serde_json::Value = res.json().await.ok()?;
+    let snippet_raw = json.get("query")?
+        .get("search")?
+        .get(0)?
+        .get("snippet")?
+        .as_str()?;
+
+    let re_html = Regex::new(r"<[^>]+>").unwrap();
+    let clean = re_html.replace_all(snippet_raw, "").trim().to_string();
+    if !clean.is_empty() {
+        Some(clean)
     } else {
         None
     }
@@ -315,7 +387,7 @@ async fn query_ollama(
     client: &reqwest::Client,
     messages: &[ChatMessage],
     gui: Arc<Mutex<SharedGuiState>>,
-) -> Option<(String, String)> {
+) -> Option<(String, String, String)> {
     {
         let mut g = gui.lock().unwrap();
         g.is_thinking = true;
@@ -362,9 +434,10 @@ async fn query_ollama(
             h.jp
         };
         let id_clean = clean_indonesian_subtitle(&h.id, &jp);
-        Some((jp, id_clean))
+        let km = h.kaomoji.unwrap_or_else(|| infer_kaomoji_fallback(&id_clean).to_string());
+        Some((jp, id_clean, km))
     } else {
-        Some(("あなた、どうしましたか？".to_string(), "Sayang, ada apa?".to_string()))
+        Some(("あなた、どうしましたか？".to_string(), "Sayang, ada apa?".to_string(), "(・ω・)b".to_string()))
     }
 }
 
@@ -551,6 +624,31 @@ fn is_weather_inquiry(text: &str) -> bool {
     t.contains("cuaca") || t.contains("suhu") || t.contains("hujan") || t.contains("panas di luar") || t.contains("mendung") || t.contains("pagi")
 }
 
+fn extract_search_keyword(text: &str) -> Option<String> {
+    let t = text.to_lowercase();
+    let triggers = [
+        "siapa itu",
+        "siapakah",
+        "apa itu",
+        "apakah itu",
+        "tahu tentang",
+        "jelaskan tentang",
+        "cari tentang",
+        "info tentang",
+    ];
+
+    for trig in triggers {
+        if let Some(pos) = t.find(trig) {
+            let after = &t[pos + trig.len()..];
+            let clean = after.trim().trim_matches(|c: char| !c.is_alphanumeric() && c != ' ');
+            if clean.len() >= 2 {
+                return Some(clean.to_string());
+            }
+        }
+    }
+    None
+}
+
 fn parse_timer_seconds(text: &str) -> Option<(u64, String)> {
     let t = text.to_lowercase();
     let re_menit = Regex::new(r"(\d+)\s*(?:menit|mnt)").unwrap();
@@ -569,11 +667,24 @@ fn parse_timer_seconds(text: &str) -> Option<(u64, String)> {
     None
 }
 
+fn add_chat_history_fifo(gui: Arc<Mutex<SharedGuiState>>, role: &str, text: &str) {
+    let (h, m) = get_local_hour_minute();
+    let mut g = gui.lock().unwrap();
+    g.history.push(ChatHistoryEntry {
+        role: role.to_string(),
+        text: text.to_string(),
+        time: format!("{:02}:{:02}", h, m),
+    });
+    while g.history.len() > 10 {
+        g.history.remove(0); // FIFO: Buang pesan tertua di index 0
+    }
+}
+
 #[tokio::main]
 async fn main() {
     println!("{}", "====================================================================".magenta());
-    println!("{}", "🦀 HIMARI ENGINE v7.0: SMART HEALTH & CRON EDITION 🦀".bold().magenta());
-    println!("{}", "   [Edge App Window • Win32 Input Hook • Scheduled Cron • Webhook]".cyan());
+    println!("{}", "🦀 HIMARI ENGINE v7.3: CYBERPUNK HUD v2.1 (FIFO & EXPANSION) 🦀".bold().magenta());
+    println!("{}", "   [Edge App Window • Win32 Input Hook • Dynamic Kaomoji • FIFO Chat]".cyan());
     println!("{}", "====================================================================".magenta());
 
     let gui_state = Arc::new(Mutex::new(SharedGuiState::default()));
@@ -627,7 +738,7 @@ async fn main() {
         tokio::time::sleep(Duration::from_millis(600)).await;
         let _ = Command::new("cmd")
             .arg("/c")
-            .arg("start msedge --app=http://127.0.0.1:8765 --window-size=780,600")
+            .arg("start msedge --app=http://127.0.0.1:8765 --window-size=820,620")
             .spawn();
     });
 
@@ -659,7 +770,7 @@ async fn main() {
         g.sub_id = "Himari siap menemani Sayang...".to_string();
     }
 
-    println!("{}", "✨ Himari Engine Siap! [M]: Mute | [S]: Switch Mic | [ESC]: Keluar".cyan());
+    println!("{}", "✨ Himari Engine Siap! [M]: Mute | [S]: Switch Mic | [H]: History | [ESC]: Keluar".cyan());
 
     // --- State Tracker untuk Health Monitor & Internal Cronjob ---
     let mut last_activity_check = Instant::now();
@@ -683,6 +794,7 @@ async fn main() {
                     let mut g = gui.lock().unwrap();
                     g.sub_id = format!("Notifikasi: {}", notify_text);
                     g.status_text = "NOTIFICATION".to_string();
+                    g.kaomoji = "📢(・ω・)b".to_string();
                 }
 
                 let notify_prompt = vec![
@@ -696,12 +808,15 @@ async fn main() {
                     },
                 ];
 
-                if let Some((jp, id)) = query_ollama(&client, &notify_prompt, Arc::clone(&gui)).await {
+                if let Some((jp, id, km)) = query_ollama(&client, &notify_prompt, Arc::clone(&gui)).await {
                     {
                         let mut g = gui.lock().unwrap();
                         g.sub_jp = jp.clone();
                         g.sub_id = id.clone();
+                        g.kaomoji = km;
                     }
+                    add_chat_history_fifo(Arc::clone(&gui), "himari", &id);
+
                     play_voicevox(&client, &jp, Arc::clone(&gui)).await;
                     tokio::time::sleep(Duration::from_millis(1000)).await;
                 }
@@ -813,6 +928,7 @@ async fn main() {
                             let mut g = gui.lock().unwrap();
                             g.is_sleeping = false;
                             g.status_text = "ONLINE".to_string();
+                            g.kaomoji = "(´｡• ω •｡`)".to_string();
                         }
 
                         let wake_prompt = vec![
@@ -823,12 +939,16 @@ async fn main() {
                             },
                         ];
 
-                        if let Some((jp, id)) = query_ollama(&client, &wake_prompt, Arc::clone(&gui)).await {
+                        if let Some((jp, id, km)) = query_ollama(&client, &wake_prompt, Arc::clone(&gui)).await {
                             {
                                 let mut g = gui.lock().unwrap();
                                 g.sub_jp = jp.clone();
                                 g.sub_id = id.clone();
+                                g.kaomoji = km;
                             }
+                            add_chat_history_fifo(Arc::clone(&gui), "user", &user_text);
+                            add_chat_history_fifo(Arc::clone(&gui), "himari", &id);
+
                             play_voicevox(&client, &jp, Arc::clone(&gui)).await;
                             tokio::time::sleep(Duration::from_millis(1000)).await;
                         }
@@ -854,15 +974,19 @@ async fn main() {
                     g.status_text = "PROCESSING".to_string();
                 }
 
+                // Tambahkan pesan User ke Riwayat Chat (FIFO)
+                add_chat_history_fifo(Arc::clone(&gui), "user", &user_text);
+
                 // 1. Fitur Perintah Ganti Mic
                 if is_voice_switch_mic_command(&user_text) {
                     let new_name = mic_controller.toggle_device();
                     {
                         let mut g = gui.lock().unwrap();
                         g.mic_device = new_name.to_string();
+                        g.kaomoji = "(・ω・)b".to_string();
                     }
                     
-                    if let Some((jp, id)) = query_ollama(&client, &[
+                    if let Some((jp, id, km)) = query_ollama(&client, &[
                         chat_history[0].clone(),
                         ChatMessage { role: "user".to_string(), content: "Ucapkan konfirmasi 1 kalimat manis: マイクを切り替えましたよ、あなた。".to_string() }
                     ], Arc::clone(&gui)).await {
@@ -870,7 +994,10 @@ async fn main() {
                             let mut g = gui.lock().unwrap();
                             g.sub_jp = jp.clone();
                             g.sub_id = id.clone();
+                            g.kaomoji = km;
                         }
+                        add_chat_history_fifo(Arc::clone(&gui), "himari", &id);
+
                         play_voicevox(&client, &jp, Arc::clone(&gui)).await;
                         tokio::time::sleep(Duration::from_millis(1000)).await;
                     }
@@ -892,6 +1019,7 @@ async fn main() {
                         let mut g = gui.lock().unwrap();
                         g.is_sleeping = true;
                         g.status_text = "SLEEP MODE".to_string();
+                        g.kaomoji = "(っ- ‸ -ς)ᶻᶻ".to_string();
                     }
 
                     let sleep_prompt = vec![
@@ -902,12 +1030,15 @@ async fn main() {
                         },
                     ];
 
-                    if let Some((jp, id)) = query_ollama(&client, &sleep_prompt, Arc::clone(&gui)).await {
+                    if let Some((jp, id, km)) = query_ollama(&client, &sleep_prompt, Arc::clone(&gui)).await {
                         {
                             let mut g = gui.lock().unwrap();
                             g.sub_jp = jp.clone();
                             g.sub_id = id.clone();
+                            g.kaomoji = km;
                         }
+                        add_chat_history_fifo(Arc::clone(&gui), "himari", &id);
+
                         play_voicevox(&client, &jp, Arc::clone(&gui)).await;
                         tokio::time::sleep(Duration::from_millis(1000)).await;
                     }
@@ -937,12 +1068,15 @@ async fn main() {
                             },
                         ];
 
-                        if let Some((jp, id)) = query_ollama(&client, &confirm_prompt, Arc::clone(&gui)).await {
+                        if let Some((jp, id, km)) = query_ollama(&client, &confirm_prompt, Arc::clone(&gui)).await {
                             {
                                 let mut g = gui.lock().unwrap();
                                 g.sub_jp = jp.clone();
                                 g.sub_id = id.clone();
+                                g.kaomoji = km;
                             }
+                            add_chat_history_fifo(Arc::clone(&gui), "himari", &id);
+
                             play_voicevox(&client, &jp, Arc::clone(&gui)).await;
                             tokio::time::sleep(Duration::from_millis(1000)).await;
                         }
@@ -960,11 +1094,40 @@ async fn main() {
                 // 4. Fitur Cek Cuaca Fleksibel (Kapan Saja Tanpa Harus Sapaan Pagi)
                 let mut actual_user_prompt = user_text.clone();
                 if is_weather_inquiry(&user_text) {
+                    {
+                        let mut g = gui.lock().unwrap();
+                        g.is_tool_active = true;
+                        g.tool_name = "WEATHER RADAR".to_string();
+                        g.tool_detail = "Memindai satelit cuaca & suhu Sukabumi/Jabar...".to_string();
+                        g.kaomoji = "( ˘ ³˘)♥".to_string();
+                    }
                     if let Some(weather) = fetch_weather_info().await {
                         actual_user_prompt = format!(
                             "{} [INFO DATA CUACA REAL-TIME SAAT INI: {}. Sampaikan informasi cuaca ini kepada Sayang dengan ramah, hangat, dan manis.]",
                             user_text, weather
                         );
+                    }
+                    {
+                        let mut g = gui.lock().unwrap();
+                        g.is_tool_active = false;
+                    }
+                } else if let Some(keyword) = extract_search_keyword(&user_text) {
+                    {
+                        let mut g = gui.lock().unwrap();
+                        g.is_tool_active = true;
+                        g.tool_name = "WIKIPEDIA CORE".to_string();
+                        g.tool_detail = format!("Menghubungkan ke ensiklopedia internet: '{}'...", keyword);
+                        g.kaomoji = "(*/ω＼*)".to_string();
+                    }
+                    if let Some(wiki_summary) = fetch_wikipedia_search(&keyword).await {
+                        actual_user_prompt = format!(
+                            "{} [HASIL PENCARIAN PENGETAHUAN INTERNET TENTANG '{}': {}. Jelaskan intinya kepada Sayang secara singkat dan manis.]",
+                            user_text, keyword, wiki_summary
+                        );
+                    }
+                    {
+                        let mut g = gui.lock().unwrap();
+                        g.is_tool_active = false;
                     }
                 }
 
@@ -977,12 +1140,14 @@ async fn main() {
                     chat_history = [vec![chat_history[0].clone()], chat_history[chat_history.len()-14..].to_vec()].concat();
                 }
 
-                if let Some((jp, id)) = query_ollama(&client, &chat_history, Arc::clone(&gui)).await {
+                if let Some((jp, id, km)) = query_ollama(&client, &chat_history, Arc::clone(&gui)).await {
                     {
                         let mut g = gui.lock().unwrap();
                         g.sub_jp = jp.clone();
                         g.sub_id = id.clone();
+                        g.kaomoji = km;
                     }
+                    add_chat_history_fifo(Arc::clone(&gui), "himari", &id);
                     
                     chat_history.push(ChatMessage {
                         role: "assistant".to_string(),
@@ -1076,12 +1241,15 @@ async fn main() {
                                 let mut temp_hist = chat_history.clone();
                                 temp_hist.push(ChatMessage { role: "system".to_string(), content: prompt });
 
-                                if let Some((jp, id)) = query_ollama(&client, &temp_hist, Arc::clone(&gui)).await {
+                                if let Some((jp, id, km)) = query_ollama(&client, &temp_hist, Arc::clone(&gui)).await {
                                     {
                                         let mut g = gui.lock().unwrap();
                                         g.sub_jp = jp.clone();
                                         g.sub_id = id.clone();
+                                        g.kaomoji = km;
                                     }
+                                    add_chat_history_fifo(Arc::clone(&gui), "himari", &id);
+
                                     play_voicevox(&client, &jp, Arc::clone(&gui)).await;
                                     tokio::time::sleep(Duration::from_millis(1000)).await;
                                 }
@@ -1102,13 +1270,16 @@ async fn main() {
                                 let mut temp_hist = chat_history.clone();
                                 temp_hist.push(ChatMessage { role: "system".to_string(), content: standby_prompt.to_string() });
 
-                                if let Some((jp, id)) = query_ollama(&client, &temp_hist, Arc::clone(&gui)).await {
+                                if let Some((jp, id, km)) = query_ollama(&client, &temp_hist, Arc::clone(&gui)).await {
                                     {
                                         let mut g = gui.lock().unwrap();
                                         g.sub_jp = jp.clone();
                                         g.sub_id = id.clone();
+                                        g.kaomoji = km;
                                         g.status_text = "STANDBY".to_string();
                                     }
+                                    add_chat_history_fifo(Arc::clone(&gui), "himari", &id);
+
                                     play_voicevox(&client, &jp, Arc::clone(&gui)).await;
                                     tokio::time::sleep(Duration::from_millis(1000)).await;
                                 }
