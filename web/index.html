@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>HIMARI SCI-FI CORE // JARVIS HUD</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+    body {
+      background: radial-gradient(circle at center, #0a0c16 0%, #030408 100%);
+      color: #e0f2fe;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+
+    body::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(rgba(14, 165, 233, 0.03) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(14, 165, 233, 0.03) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Top HUD Header */
+    header {
+      position: relative;
+      z-index: 10;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(56, 189, 248, 0.15);
+      background: rgba(8, 14, 26, 0.75);
+      backdrop-filter: blur(12px);
+    }
+    .hud-title {
+      font-size: 16px;
+      letter-spacing: 2px;
+      font-weight: 700;
+      color: #38bdf8;
+      text-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .hud-title .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #38bdf8;
+      box-shadow: 0 0 10px #38bdf8;
+      transition: all 0.3s ease;
+    }
+    .hud-meta {
+      display: flex;
+      gap: 12px;
+      font-size: 13px;
+      font-family: monospace;
+    }
+    .hud-badge {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      padding: 6px 14px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    .hud-badge:hover {
+      transform: translateY(-1px);
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+    }
+    .hud-badge.btn-mute {
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    .hud-badge.btn-mute.active {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: #ef4444;
+      color: #fca5a5;
+      box-shadow: 0 0 14px rgba(239, 68, 68, 0.4);
+    }
+    .hud-badge.btn-switch {
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    /* Center Visualizer Canvas */
+    .visualizer-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -54%);
+      width: 440px;
+      height: 440px;
+      z-index: 5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+    }
+    .core-status-box {
+      position: absolute;
+      text-align: center;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .core-status-label {
+      font-family: monospace;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      color: #38bdf8;
+      text-shadow: 0 0 14px rgba(56, 189, 248, 0.8);
+      transition: all 0.3s ease;
+    }
+    .core-sub-label {
+      font-family: monospace;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      color: #94a3b8;
+    }
+
+    /* Subtitle & Chat Area */
+    footer {
+      position: relative;
+      z-index: 10;
+      padding: 16px 28px 20px;
+    }
+    .subtitle-card {
+      background: rgba(11, 19, 38, 0.8);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 0 16px rgba(56, 189, 248, 0.05);
+      border-radius: 12px;
+      padding: 18px 24px;
+      backdrop-filter: blur(16px);
+      transition: all 0.3s ease;
+    }
+    .sub-jp {
+      font-size: 21px;
+      font-weight: 600;
+      color: #f472b6;
+      text-shadow: 0 0 16px rgba(244, 114, 182, 0.45);
+      margin-bottom: 8px;
+      min-height: 28px;
+      line-height: 1.4;
+      font-family: 'Yu Gothic', 'Hiragino Sans', 'Meiryo', sans-serif;
+    }
+    .sub-id {
+      font-size: 16px;
+      color: #f8fafc;
+      font-weight: 400;
+      min-height: 24px;
+      line-height: 1.5;
+    }
+    .sub-id span.master {
+      color: #fbbf24;
+      font-weight: 600;
+    }
+    .sub-id span.himari {
+      color: #38bdf8;
+      font-weight: 600;
+    }
+
+    /* Bottom Control Bar */
+    .controls-hint {
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #64748b;
+      font-family: monospace;
+    }
+    .key-tag {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      padding: 2px 7px;
+      border-radius: 4px;
+      color: #cbd5e1;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header HUD -->
+  <header>
+    <div class="hud-title">
+      <div class="dot" id="hudDot"></div>
+      <span>HIMARI CORE // HUD v5.2</span>
+    </div>
+    <div class="hud-meta">
+      <div class="hud-badge btn-mute" id="btnMute">🔇 MUTE [M]</div>
+      <div class="hud-badge btn-switch" id="btnSwitch">🔄 SWITCH MIC [S]</div>
+    </div>
+  </header>
+
+  <!-- Jarvis Visualizer Canvas -->
+  <div class="visualizer-container">
+    <canvas id="coreCanvas" width="440" height="440"></canvas>
+    <div class="core-status-box">
+      <div class="core-status-label" id="coreLabel">ONLINE</div>
+      <div class="core-sub-label" id="micDeviceSub">MIC: IEM (USB AUDIO)</div>
+    </div>
+  </div>
+
+  <!-- Subtitle Glass Box -->
+  <footer>
+    <div class="subtitle-card">
+      <div class="sub-jp" id="subJp">マスター、お疲れ様です。そばにいますね。</div>
+      <div class="sub-id" id="subId"><span class="himari">Himari:</span> "Master, istirahat ya. Aku akan tetap di sampingmu."</div>
+    </div>
+    <div class="controls-hint">
+      <div>Klik tombol di atas atau tekan <span class="key-tag">M</span> Mute &nbsp;|&nbsp; <span class="key-tag">S</span> Ganti Mic (PC/HP)</div>
+      <div>Tekan <span class="key-tag">ESC</span> Keluar Aplikasi</div>
+    </div>
+  </footer>
+
+  <script>
+    const canvas = document.getElementById('coreCanvas');
+    const ctx = canvas.getContext('2d');
+    const coreLabel = document.getElementById('coreLabel');
+    const micDeviceSub = document.getElementById('micDeviceSub');
+    const subJp = document.getElementById('subJp');
+    const subId = document.getElementById('subId');
+    const hudDot = document.getElementById('hudDot');
+    const btnMute = document.getElementById('btnMute');
+    const btnSwitch = document.getElementById('btnSwitch');
+
+    let state = {
+      status_text: 'ONLINE',
+      sub_jp: '',
+      sub_id: 'Menghubungkan ke Qwen 14B & VOICEVOX...',
+      mic_device: 'Mic IEM (USB Audio)',
+      is_speaking: false,
+      is_thinking: false,
+      is_muted: false,
+      is_sleeping: false
+    };
+
+    let rotation = 0;
+    let pulse = 0;
+
+    // Klik tombol Mute di layar
+    btnMute.addEventListener('click', () => {
+      fetch('/api/action/mute', { method: 'POST' });
+    });
+
+    // Klik tombol Switch Mic di layar
+    btnSwitch.addEventListener('click', () => {
+      fetch('/api/action/switch', { method: 'POST' });
+    });
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', async (e) => {
+      const key = e.key.toLowerCase();
+      if (key === 'm') {
+        fetch('/api/action/mute', { method: 'POST' });
+      } else if (key === 's') {
+        fetch('/api/action/switch', { method: 'POST' });
+      } else if (key === 'escape') {
+        await fetch('/api/action/exit', { method: 'POST' });
+        window.close();
+      }
+    });
+
+    // Render Animasi Canvas Geometri Jarvis
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+
+      let speed = 0.012;
+      let themeColor = '#38bdf8'; // Cyan Default (ONLINE / LISTENING)
+      let glowColor = 'rgba(56, 189, 248, 0.4)';
+
+      if (state.is_muted) {
+        themeColor = '#ef4444'; // Red (MUTED)
+        glowColor = 'rgba(239, 68, 68, 0.5)';
+        speed = 0.004;
+      } else if (state.is_sleeping) {
+        themeColor = '#a855f7'; // Purple (SLEEP MODE / TIDUR)
+        glowColor = 'rgba(168, 85, 247, 0.4)';
+        speed = 0.006;
+      } else if (state.status_text === 'STANDBY') {
+        themeColor = '#64748b'; // Slate Gray (STANDBY IDLE)
+        glowColor = 'rgba(100, 116, 139, 0.4)';
+        speed = 0.008;
+      } else if (state.is_thinking) {
+        themeColor = '#f59e0b'; // Gold (QWEN 14B PROCESSING)
+        glowColor = 'rgba(245, 158, 11, 0.6)';
+        speed = 0.04;
+      } else if (state.is_speaking) {
+        themeColor = '#06b6d4'; // Bright Cyan (VOICEVOX SPEAKING)
+        glowColor = 'rgba(6, 182, 212, 0.7)';
+        speed = 0.025;
+      }
+
+      rotation += speed;
+      pulse += 0.05;
+
+      const dynamicRadius = state.is_speaking 
+        ? 88 + Math.sin(pulse * 3) * 12 
+        : (state.is_thinking ? 88 + Math.cos(pulse * 6) * 6 : 82 + Math.sin(pulse) * 3);
+
+      ctx.save();
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = themeColor;
+
+      // Outer Glow Ring
+      ctx.strokeStyle = glowColor;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, dynamicRadius + 44, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Middle Theme Ring
+      ctx.strokeStyle = themeColor;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, dynamicRadius + 20, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Inner Core Fill
+      ctx.fillStyle = glowColor.replace('0.', '0.08');
+      ctx.beginPath();
+      ctx.arc(cx, cy, dynamicRadius - 10, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Rotating Hexagonal Data Ring
+      const numNodes = 6;
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < numNodes; i++) {
+        const angle = rotation + (i * Math.PI * 2 / numNodes);
+        const x = cx + Math.cos(angle) * (dynamicRadius + 20);
+        const y = cy + Math.sin(angle) * (dynamicRadius + 20);
+
+        ctx.fillStyle = themeColor;
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        const nextAngle = rotation + ((i + 1) * Math.PI * 2 / numNodes);
+        const nx = cx + Math.cos(nextAngle) * (dynamicRadius + 20);
+        const ny = cy + Math.sin(nextAngle) * (dynamicRadius + 20);
+
+        ctx.strokeStyle = themeColor;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(nx, ny);
+        ctx.stroke();
+      }
+
+      // Counter-rotating Inner Sacred Triangles
+      for (let i = 0; i < 3; i++) {
+        const angle = -rotation * 1.6 + (i * Math.PI * 2 / 3);
+        const x1 = cx + Math.cos(angle) * (dynamicRadius - 25);
+        const y1 = cy + Math.sin(angle) * (dynamicRadius - 25);
+        const nextAngle = -rotation * 1.6 + ((i + 1) * Math.PI * 2 / 3);
+        const x2 = cx + Math.cos(nextAngle) * (dynamicRadius - 25);
+        const y2 = cy + Math.sin(nextAngle) * (dynamicRadius - 25);
+
+        ctx.strokeStyle = themeColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+      requestAnimationFrame(render);
+    }
+
+    // Polling State Sinkronisasi dari Rust Backend
+    async function syncState() {
+      try {
+        const res = await fetch('/api/state');
+        if (res.ok) {
+          const data = await res.json();
+          state = data;
+
+          // 1. Tentukan Label Status yang Akurat
+          let displayStatus = state.status_text;
+          if (state.is_muted) {
+            displayStatus = 'MIC MUTED';
+          } else if (state.is_sleeping) {
+            displayStatus = 'SLEEP MODE';
+          } else if (state.is_thinking) {
+            displayStatus = 'THINKING...';
+          } else if (state.is_speaking) {
+            displayStatus = 'SPEAKING...';
+          }
+
+          coreLabel.innerText = displayStatus;
+          micDeviceSub.innerText = `MIC: ${state.mic_device.toUpperCase()}`;
+          btnSwitch.innerText = `🔄 ${state.mic_device.toUpperCase()}`;
+
+          // 2. Tombol Mute State
+          if (state.is_muted) {
+            btnMute.classList.add('active');
+            btnMute.innerText = '🔴 UNMUTE [M]';
+            coreLabel.style.color = '#ef4444';
+            hudDot.style.background = '#ef4444';
+            hudDot.style.boxShadow = '0 0 12px #ef4444';
+          } else {
+            btnMute.classList.remove('active');
+            btnMute.innerText = '🔇 MUTE [M]';
+            if (state.is_sleeping) {
+              coreLabel.style.color = '#a855f7';
+              hudDot.style.background = '#a855f7';
+              hudDot.style.boxShadow = '0 0 12px #a855f7';
+            } else if (state.status_text === 'STANDBY') {
+              coreLabel.style.color = '#94a3b8';
+              hudDot.style.background = '#94a3b8';
+              hudDot.style.boxShadow = '0 0 8px #94a3b8';
+            } else if (state.is_thinking) {
+              coreLabel.style.color = '#f59e0b';
+              hudDot.style.background = '#f59e0b';
+              hudDot.style.boxShadow = '0 0 14px #f59e0b';
+            } else if (state.is_speaking) {
+              coreLabel.style.color = '#06b6d4';
+              hudDot.style.background = '#06b6d4';
+              hudDot.style.boxShadow = '0 0 14px #06b6d4';
+            } else {
+              coreLabel.style.color = '#38bdf8';
+              hudDot.style.background = '#38bdf8';
+              hudDot.style.boxShadow = '0 0 12px #38bdf8';
+            }
+          }
+
+          // 3. Tampilkan Subtitle
+          if (state.sub_jp) {
+            subJp.innerText = state.sub_jp;
+          }
+          if (state.sub_id) {
+            subId.innerHTML = state.sub_id.startsWith('Master:') 
+              ? `<span class="master">Master:</span> "${state.sub_id.replace(/^Master:\s*"?/, '').replace(/"?$/, '')}"`
+              : `<span class="himari">Himari:</span> "${state.sub_id.replace(/^"?/, '').replace(/"?$/, '')}"`;
+          }
+        }
+      } catch (e) {}
+    }
+
+    setInterval(syncState, 200);
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+/target/
+**/*.rs.bk
+*.exe
+*.pdb
+*.json
+.env
+.DS_Store
+Thumbs.db
