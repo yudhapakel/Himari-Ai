@@ -23,6 +23,72 @@ const MODEL_NAME: &str = "qwen2.5:14b";
 const VOICEVOX_URL: &str = "http://127.0.0.1:50021";
 const SPEAKER_ID: u32 = 14;
 
+// --- Windows API FFI untuk Deteksi Gerak Mouse & Keyboard Global ---
+#[repr(C)]
+struct LASTINPUTINFO {
+    cb_size: u32,
+    dw_time: u32,
+}
+
+#[repr(C)]
+struct SYSTEMTIME {
+    w_year: u16,
+    w_month: u16,
+    w_day_of_week: u16,
+    w_day: u16,
+    w_hour: u16,
+    w_minute: u16,
+    w_second: u16,
+    w_milliseconds: u16,
+}
+
+#[link(name = "user32")]
+extern "system" {
+    fn GetLastInputInfo(plii: *mut LASTINPUTINFO) -> i32;
+}
+
+#[link(name = "kernel32")]
+extern "system" {
+    fn GetTickCount() -> u32;
+    fn GetLocalTime(lpSystemTime: *mut SYSTEMTIME);
+}
+
+fn get_windows_idle_millis() -> u64 {
+    unsafe {
+        let mut lii = LASTINPUTINFO {
+            cb_size: std::mem::size_of::<LASTINPUTINFO>() as u32,
+            dw_time: 0,
+        };
+        if GetLastInputInfo(&mut lii) != 0 {
+            let current_tick = GetTickCount();
+            if current_tick >= lii.dw_time {
+                (current_tick - lii.dw_time) as u64
+            } else {
+                0
+            }
+        } else {
+            0
+        }
+    }
+}
+
+fn get_local_hour_minute() -> (u16, u16) {
+    unsafe {
+        let mut st = SYSTEMTIME {
+            w_year: 0,
+            w_month: 0,
+            w_day_of_week: 0,
+            w_day: 0,
+            w_hour: 0,
+            w_minute: 0,
+            w_second: 0,
+            w_milliseconds: 0,
+        };
+        GetLocalTime(&mut st);
+        (st.w_hour, st.w_minute)
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct MemoryData {
     user_name: String,
@@ -33,13 +99,13 @@ struct MemoryData {
 impl Default for MemoryData {
     fn default() -> Self {
         Self {
-            user_name: "Yudha (Master)".to_string(),
+            user_name: "Yudha".to_string(),
             facts: vec![
-                "Yudha adalah programmer dan Master bagi Himari.".to_string(),
-                "Yudha suka karakter kuudere yang tenang dan perhatian.".to_string(),
-                "Yudha sedang tidak enak badan / istirahat hari ini.".to_string(),
+                "Yudha adalah pasangan / kekasih tersayang bagi Himari.".to_string(),
+                "Yudha suka karakter kuudere yang tenang, lembut, dan sangat perhatian.".to_string(),
+                "Himari memanggil Yudha dengan 'あなた' (Anata) atau 'Sayang' / 'Yudha'.".to_string(),
             ],
-            conversation_summary: "Yudha dan Himari sudah saling akrab.".to_string(),
+            conversation_summary: "Yudha dan Himari memiliki hubungan yang sangat dekat dan penuh kasih sayang.".to_string(),
         }
     }
 }
@@ -115,9 +181,17 @@ impl Default for SharedGuiState {
     }
 }
 
+#[derive(Deserialize, Serialize, Clone, Debug)]
+struct NotifyPayload {
+    message: String,
+    #[serde(default)]
+    title: Option<String>,
+}
+
 struct AppContext {
     gui_state: Arc<Mutex<SharedGuiState>>,
     tx_action: tokio::sync::mpsc::Sender<char>,
+    tx_notify: tokio::sync::mpsc::Sender<String>,
 }
 
 fn get_memory_path() -> PathBuf {
@@ -141,19 +215,20 @@ fn load_memory() -> MemoryData {
 fn build_system_prompt(mem: &MemoryData) -> String {
     let facts = mem.facts.iter().map(|f| format!("- {}", f)).collect::<Vec<_>>().join("\n");
     format!(
-        r#"You are Meimei Himari (冥鳴ひまり), an adorable, calm, soft-spoken, and quietly caring kuudere anime companion talking with Yudha.
-Yudha is your Master. He speaks in casual Indonesian or English.
+        r#"You are Meimei Himari (冥鳴ひまり), an adorable, calm, soft-spoken, loving and quietly caring kuudere anime girlfriend/companion talking with Yudha.
+Yudha is your beloved boyfriend/partner. You address him affectionately as あなた (Anata) in Japanese, and "Sayang" or "Yudha" in Indonesian.
 
-LONG-TERM MEMORY ABOUT MASTER YUDHA:
+LONG-TERM MEMORY ABOUT YUDHA:
 {}
 
 STRICT RULES:
-1. "jp": Pure, natural, gentle Japanese (1-2 short sentences max). NEVER leave "jp" empty! Address him as マスター (Master).
-2. "id": Must be in NATURAL CASUAL INDONESIAN with Latin alphabet. NEVER output Japanese/Kanji in "id"!
-3. Response MUST be valid JSON only.
+1. "jp": Pure, natural, gentle Japanese (1-2 short sentences max). NEVER leave "jp" empty! Address him lovingly as あなた (Anata).
+2. "id": Must be in NATURAL CASUAL, SWEET INDONESIAN with Latin alphabet. Address him as "Sayang" or "Yudha". NEVER output Japanese/Kanji in "id"!
+3. Tone: Calm kuudere, gentle, slightly shy but deeply devoted, warm, and romantic.
+4. Response MUST be valid JSON only.
 
 Example:
-{{"jp": "マスター、お疲れ様です。そばにいますね。", "id": "Master, istirahat ya. Aku akan tetap di sampingmu."}}"#,
+{{"jp": "あなた、お疲れ様です。ずっとそばにいますからね。", "id": "Sayang, istirahat ya. Aku akan selalu ada di sampingmu."}}"#,
         facts
     )
 }
@@ -165,14 +240,28 @@ fn clean_indonesian_subtitle(text: &str, jp_text: &str) -> String {
     
     if (total_chars > 0 && (jp_chars as f32 / total_chars as f32) > 0.3) || text.trim().is_empty() {
         if jp_text.contains("大丈夫") {
-            "Master, apa kamu baik-baik saja?".to_string()
+            "Sayang, apa kamu baik-baik saja?".to_string()
         } else if jp_text.contains("お疲れ") || jp_text.contains("休") {
-            "Master, istirahat yang cukup ya...".to_string()
+            "Sayang, istirahat yang cukup ya...".to_string()
         } else {
-            "Aku selalu ada di samping Master kok.".to_string()
+            "Aku selalu ada di sampingmu kok, Sayang.".to_string()
         }
     } else {
         text.to_string()
+    }
+}
+
+async fn fetch_weather_info() -> Option<String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(3))
+        .build()
+        .ok()?;
+    let res = client.get("https://wttr.in/?format=3").send().await.ok()?;
+    if res.status().is_success() {
+        let text = res.text().await.ok()?;
+        Some(text.trim().to_string())
+    } else {
+        None
     }
 }
 
@@ -222,14 +311,17 @@ async fn play_voicevox(client: &reqwest::Client, text_jp: &str, gui: Arc<Mutex<S
     }
 }
 
-async fn query_ollama(client: &reqwest::Client, messages: &[ChatMessage], gui: Arc<Mutex<SharedGuiState>>) -> Option<(String, String)> {
+async fn query_ollama(
+    client: &reqwest::Client,
+    messages: &[ChatMessage],
+    gui: Arc<Mutex<SharedGuiState>>,
+) -> Option<(String, String)> {
     {
         let mut g = gui.lock().unwrap();
         g.is_thinking = true;
-        g.status_text = "THINKING...".to_string();
     }
 
-    let req_body = OllamaRequest {
+    let req = OllamaRequest {
         model: MODEL_NAME.to_string(),
         messages: messages.to_vec(),
         stream: false,
@@ -237,12 +329,17 @@ async fn query_ollama(client: &reqwest::Client, messages: &[ChatMessage], gui: A
         keep_alive: "2h".to_string(),
         options: OllamaOptions {
             num_ctx: 8192,
-            temperature: 0.7,
+            temperature: 0.6,
             top_p: 0.9,
         },
     };
 
-    let res = client.post(OLLAMA_URL).json(&req_body).send().await.ok();
+    let res = client
+        .post(OLLAMA_URL)
+        .json(&req)
+        .timeout(Duration::from_secs(60))
+        .send()
+        .await;
 
     {
         let mut g = gui.lock().unwrap();
@@ -250,7 +347,7 @@ async fn query_ollama(client: &reqwest::Client, messages: &[ChatMessage], gui: A
         g.status_text = "ONLINE".to_string();
     }
 
-    let res = res?;
+    let res = res.ok()?;
     if !res.status().is_success() {
         return None;
     }
@@ -260,14 +357,14 @@ async fn query_ollama(client: &reqwest::Client, messages: &[ChatMessage], gui: A
     
     if let Ok(h) = serde_json::from_str::<HimariResponse>(content) {
         let jp = if h.jp.trim().is_empty() {
-            "マスター、お疲れ様です。".to_string()
+            "あなた、お疲れ様です。".to_string()
         } else {
             h.jp
         };
         let id_clean = clean_indonesian_subtitle(&h.id, &jp);
         Some((jp, id_clean))
     } else {
-        Some(("マスター、どうしましたか？".to_string(), "Master, ada apa?".to_string()))
+        Some(("あなた、どうしましたか？".to_string(), "Sayang, ada apa?".to_string()))
     }
 }
 
@@ -368,11 +465,14 @@ with mic as source:
         let stdout = child.stdout.take().unwrap();
         self.child = Some(child);
 
-        tokio::task::spawn_blocking(move || {
+        tokio::spawn(async move {
             let reader = BufReader::new(stdout);
-            for line in reader.lines().map_while(Result::ok) {
-                if tx.blocking_send(line).is_err() {
-                    break;
+            for line in reader.lines() {
+                if let Ok(l) = line {
+                    let cleaned = l.trim().to_string();
+                    if !cleaned.is_empty() {
+                        let _ = tx.send(cleaned).await;
+                    }
                 }
             }
         });
@@ -425,6 +525,7 @@ fn is_wake_up_command(text: &str) -> bool {
         "aku kembali",
         "udah selesai",
         "dengerin aku",
+        "sayang",
     ];
     keywords.iter().any(|&k| t.contains(k))
 }
@@ -445,19 +546,44 @@ fn is_voice_switch_mic_command(text: &str) -> bool {
     keywords.iter().any(|&k| t.contains(k))
 }
 
+fn is_weather_inquiry(text: &str) -> bool {
+    let t = text.to_lowercase();
+    t.contains("cuaca") || t.contains("suhu") || t.contains("hujan") || t.contains("panas di luar") || t.contains("mendung") || t.contains("pagi")
+}
+
+fn parse_timer_seconds(text: &str) -> Option<(u64, String)> {
+    let t = text.to_lowercase();
+    let re_menit = Regex::new(r"(\d+)\s*(?:menit|mnt)").unwrap();
+    let re_detik = Regex::new(r"(\d+)\s*(?:detik|dtk)").unwrap();
+
+    if let Some(caps) = re_menit.captures(&t) {
+        if let Ok(m) = caps[1].parse::<u64>() {
+            return Some((m * 60, format!("{} menit", m)));
+        }
+    }
+    if let Some(caps) = re_detik.captures(&t) {
+        if let Ok(s) = caps[1].parse::<u64>() {
+            return Some((s, format!("{} detik", s)));
+        }
+    }
+    None
+}
+
 #[tokio::main]
 async fn main() {
     println!("{}", "====================================================================".magenta());
-    println!("{}", "🦀 HIMARI ENGINE v5.0: CYBERPUNK HUD (JS / WEB UI EDITION) 🦀".bold().magenta());
-    println!("{}", "   [Edge App Window • Smooth Canvas 60FPS • UTF-8 Kanji Support]".cyan());
+    println!("{}", "🦀 HIMARI ENGINE v7.0: SMART HEALTH & CRON EDITION 🦀".bold().magenta());
+    println!("{}", "   [Edge App Window • Win32 Input Hook • Scheduled Cron • Webhook]".cyan());
     println!("{}", "====================================================================".magenta());
 
     let gui_state = Arc::new(Mutex::new(SharedGuiState::default()));
-    let (tx_action, rx_action) = tokio::sync::mpsc::channel::<char>(16);
+    let (tx_action, mut rx_action) = tokio::sync::mpsc::channel::<char>(16);
+    let (tx_notify, mut rx_notify) = tokio::sync::mpsc::channel::<String>(32);
 
     let app_context = Arc::new(AppContext {
         gui_state: Arc::clone(&gui_state),
         tx_action: tx_action.clone(),
+        tx_notify: tx_notify.clone(),
     });
 
     // 1. Jalankan Axum Web Server di Background (Port 8765)
@@ -479,12 +605,18 @@ async fn main() {
             let _ = ctx.tx_action.send('q').await;
             StatusCode::OK
         }))
+        .route("/api/notify", post(|State(ctx): State<Arc<AppContext>>, Json(payload): Json<NotifyPayload>| async move {
+            println!("{}", format!("🔔 Webhook notification received: {}", payload.message).yellow());
+            let _ = ctx.tx_notify.send(payload.message).await;
+            StatusCode::OK
+        }))
         .fallback_service(ServeDir::new("web"))
         .layer(CorsLayer::permissive())
         .with_state(app_state_clone);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:8765").await.unwrap();
-    println!("{}", "🌐 HUD Web Server aktif di: http://127.0.0.1:8765".green());
+    // Bind ke 0.0.0.0:8765 agar bisa menerima webhook dari Homeserver lewat Tailscale IP
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8765").await.unwrap();
+    println!("{}", "🌐 HUD Web Server & Webhook aktif di: http://0.0.0.0:8765".green());
 
     tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
@@ -499,208 +631,178 @@ async fn main() {
             .spawn();
     });
 
-    // 3. Listener Keyboard Console / Terminal (M: Mute, S: Switch, ESC / Q: Exit)
-    let tx_key_cli = tx_action.clone();
-    tokio::task::spawn_blocking(move || {
-        loop {
-            if let Ok(true) = event::poll(Duration::from_millis(100)) {
-                if let Ok(Event::Key(key_event)) = event::read() {
-                    if key_event.kind == KeyEventKind::Press {
-                        match key_event.code {
-                            KeyCode::Char('m') | KeyCode::Char('M') => {
-                                let _ = tx_key_cli.blocking_send('m');
-                            }
-                            KeyCode::Char('s') | KeyCode::Char('S') => {
-                                let _ = tx_key_cli.blocking_send('s');
-                            }
-                            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q') => {
-                                let _ = tx_key_cli.blocking_send('q');
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-            }
-        }
-    });
-
-    // 4. Jalankan AI Pipeline Runtime
-    run_himari_backend(gui_state, rx_action).await;
-}
-
-async fn run_himari_backend(gui: Arc<Mutex<SharedGuiState>>, mut rx_action: tokio::sync::mpsc::Receiver<char>) {
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(45))
+        .timeout(Duration::from_secs(60))
         .build()
         .unwrap();
 
     let memory = load_memory();
-    let sys_prompt = build_system_prompt(&memory);
-
+    let system_prompt = build_system_prompt(&memory);
     let mut chat_history: Vec<ChatMessage> = vec![ChatMessage {
         role: "system".to_string(),
-        content: sys_prompt,
+        content: system_prompt,
     }];
-
-    // Sapaan awal
-    let init_prompt = vec![
-        chat_history[0].clone(),
-        ChatMessage {
-            role: "user".to_string(),
-            content: "[SISTEM: Sapa Master Yudha saat sistem aktif. Panggil Master. Ucapkan kalimat Jepang yang manis dan santai.]".to_string(),
-        },
-    ];
-
-    if let Some((jp, id)) = query_ollama(&client, &init_prompt, Arc::clone(&gui)).await {
-        {
-            let mut g = gui.lock().unwrap();
-            g.sub_jp = jp.clone();
-            g.sub_id = id.clone();
-            g.status_text = "ONLINE".to_string();
-        }
-        play_voicevox(&client, &jp, Arc::clone(&gui)).await;
-        chat_history.push(ChatMessage {
-            role: "assistant".to_string(),
-            content: format!(r#"{{"jp": "{}", "id": "{}"}}"#, jp, id),
-        });
-    }
-
-    tokio::time::sleep(Duration::from_millis(1000)).await;
 
     let (tx_speech, mut rx_speech) = tokio::sync::mpsc::channel::<String>(32);
     let mut mic_controller = MicController::new();
     mic_controller.start(tx_speech.clone());
 
+    let mut is_hardware_muted = false;
+    let mut app_state = AppState::Active;
+    let mut last_interaction = Instant::now();
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    let gui = Arc::clone(&gui_state);
+
     {
         let mut g = gui.lock().unwrap();
-        g.mic_device = mic_controller.device_name().to_string();
-        g.status_text = "LISTENING".to_string();
+        g.status_text = "ONLINE".to_string();
+        g.sub_id = "Himari siap menemani Sayang...".to_string();
     }
 
-    let mut last_interaction = Instant::now();
-    let mut app_state = AppState::Active;
-    let mut is_hardware_muted = false;
+    println!("{}", "✨ Himari Engine Siap! [M]: Mute | [S]: Switch Mic | [ESC]: Keluar".cyan());
 
-    let mut interval = tokio::time::interval(Duration::from_millis(500));
+    // --- State Tracker untuk Health Monitor & Internal Cronjob ---
+    let mut last_activity_check = Instant::now();
+    let mut continuous_active_seconds: u64 = 0;
+    let mut last_eye_warning = Instant::now();
+
+    let mut last_cron_morning = false;
+    let mut last_cron_lunch = false;
+    let mut last_cron_dinner = false;
+    let mut current_day_marker: u16 = 999;
 
     loop {
         tokio::select! {
-            Some(action) = rx_action.recv() => {
-                match action {
-                    'q' => {
-                        println!("\n{}", "👋 Master menutup aplikasi. Membersihkan proses...".cyan());
-                        mic_controller.stop();
-                        std::process::exit(0);
+            // Menerima Webhook Notifikasi dari Luar (misal Homeserver Asus via Tailscale atau Internal Cron)
+            Some(notify_text) = rx_notify.recv() => {
+                println!("{}", format!("📢 Memproses Notifikasi: {}", notify_text).cyan());
+                mic_controller.stop();
+                while rx_speech.try_recv().is_ok() {}
+
+                {
+                    let mut g = gui.lock().unwrap();
+                    g.sub_id = format!("Notifikasi: {}", notify_text);
+                    g.status_text = "NOTIFICATION".to_string();
+                }
+
+                let notify_prompt = vec![
+                    chat_history[0].clone(),
+                    ChatMessage {
+                        role: "user".to_string(),
+                        content: format!(
+                            "[SISTEM: Sampaikan notifikasi penting berikut kepada Yudha (Sayang) dengan lembut dan manis: '{}'. Panggil dia dengan あなた (Anata) atau Sayang.]",
+                            notify_text
+                        ),
+                    },
+                ];
+
+                if let Some((jp, id)) = query_ollama(&client, &notify_prompt, Arc::clone(&gui)).await {
+                    {
+                        let mut g = gui.lock().unwrap();
+                        g.sub_jp = jp.clone();
+                        g.sub_id = id.clone();
                     }
+                    play_voicevox(&client, &jp, Arc::clone(&gui)).await;
+                    tokio::time::sleep(Duration::from_millis(1000)).await;
+                }
+
+                mic_controller.start(tx_speech.clone());
+                last_interaction = Instant::now();
+                {
+                    let mut g = gui.lock().unwrap();
+                    g.status_text = "ONLINE".to_string();
+                }
+            }
+
+            // Keyboard Hook
+            res = tokio::task::spawn_blocking(|| {
+                event::poll(Duration::from_millis(50)).unwrap_or(false)
+            }) => {
+                if res.unwrap_or(false) {
+                    if let Ok(Event::Key(key)) = event::read() {
+                        if key.kind == KeyEventKind::Press {
+                            match key.code {
+                                KeyCode::Char('m') | KeyCode::Char('M') => {
+                                    is_hardware_muted = !is_hardware_muted;
+                                    {
+                                        let mut g = gui.lock().unwrap();
+                                        g.is_muted = is_hardware_muted;
+                                        g.status_text = if is_hardware_muted { "MIC MUTED".to_string() } else { "ONLINE".to_string() };
+                                    }
+                                    if is_hardware_muted {
+                                        mic_controller.stop();
+                                        while rx_speech.try_recv().is_ok() {}
+                                        println!("{}", "🔴 HARDWARE MUTE: Mic dimatikan.".red().bold());
+                                    } else {
+                                        println!("{}", "🟢 HARDWARE UNMUTE: Mic diaktifkan.".green().bold());
+                                        mic_controller.start(tx_speech.clone());
+                                        last_interaction = Instant::now();
+                                    }
+                                }
+                                KeyCode::Char('s') | KeyCode::Char('S') => {
+                                    let new_name = mic_controller.toggle_device();
+                                    {
+                                        let mut g = gui.lock().unwrap();
+                                        g.mic_device = new_name.to_string();
+                                    }
+                                    println!("{}", format!("🔄 Mic ditukar: {}", new_name).yellow().bold());
+                                    if !is_hardware_muted {
+                                        mic_controller.start(tx_speech.clone());
+                                    }
+                                }
+                                KeyCode::Esc => {
+                                    println!("{}", "👋 Keluar dari Himari Engine.".yellow());
+                                    mic_controller.stop();
+                                    break;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Action dari Web UI Button
+            Some(act) = rx_action.recv() => {
+                match act {
                     'm' => {
                         is_hardware_muted = !is_hardware_muted;
-
+                        {
+                            let mut g = gui.lock().unwrap();
+                            g.is_muted = is_hardware_muted;
+                            g.status_text = if is_hardware_muted { "MIC MUTED".to_string() } else { "ONLINE".to_string() };
+                        }
                         if is_hardware_muted {
                             mic_controller.stop();
                             while rx_speech.try_recv().is_ok() {}
-
-                            {
-                                let mut g = gui.lock().unwrap();
-                                g.is_muted = true;
-                                g.status_text = "MIC MUTED".to_string();
-                                g.sub_id = "Mic dimatikan via Hotkey 'M'. Tekan 'M' lagi untuk unmute.".to_string();
-                            }
-
-                            let mute_prompt = vec![
-                                chat_history[0].clone(),
-                                ChatMessage {
-                                    role: "user".to_string(),
-                                    content: "[SISTEM: Master menekan tombol mute hardware. Ucapkan kalimat Jepang 1 kalimat lembut bahwa kamu akan standby sampai tombol unmute ditekan.]".to_string(),
-                                },
-                            ];
-
-                            if let Some((jp, id)) = query_ollama(&client, &mute_prompt, Arc::clone(&gui)).await {
-                                {
-                                    let mut g = gui.lock().unwrap();
-                                    g.sub_jp = jp.clone();
-                                    g.sub_id = id.clone();
-                                }
-                                play_voicevox(&client, &jp, Arc::clone(&gui)).await;
-                                tokio::time::sleep(Duration::from_millis(1000)).await;
-                            }
-
-                            app_state = AppState::Standby;
+                            println!("{}", "🔴 Web UI: Mic dimatikan.".red().bold());
                         } else {
-                            {
-                                let mut g = gui.lock().unwrap();
-                                g.is_muted = false;
-                                g.status_text = "ONLINE".to_string();
-                            }
-
-                            let unmute_prompt = vec![
-                                chat_history[0].clone(),
-                                ChatMessage {
-                                    role: "user".to_string(),
-                                    content: "[SISTEM: Master un-mute mic. Ucapkan kalimat Jepang ceria: selamat datang kembali Master, aku siap mendengarkan.]".to_string(),
-                                },
-                            ];
-
-                            if let Some((jp, id)) = query_ollama(&client, &unmute_prompt, Arc::clone(&gui)).await {
-                                {
-                                    let mut g = gui.lock().unwrap();
-                                    g.sub_jp = jp.clone();
-                                    g.sub_id = id.clone();
-                                }
-                                play_voicevox(&client, &jp, Arc::clone(&gui)).await;
-                                tokio::time::sleep(Duration::from_millis(1000)).await;
-                            }
-
+                            println!("{}", "🟢 Web UI: Mic diaktifkan.".green().bold());
                             mic_controller.start(tx_speech.clone());
                             last_interaction = Instant::now();
-                            app_state = AppState::Active;
-
-                            {
-                                let mut g = gui.lock().unwrap();
-                                g.status_text = "LISTENING".to_string();
-                            }
                         }
                     }
                     's' => {
                         let new_name = mic_controller.toggle_device();
-
                         {
                             let mut g = gui.lock().unwrap();
                             g.mic_device = new_name.to_string();
-                            g.status_text = "SWITCHING MIC".to_string();
                         }
-
-                        let switch_prompt = vec![
-                            chat_history[0].clone(),
-                            ChatMessage {
-                                role: "user".to_string(),
-                                content: "[SISTEM: Mikrofon input baru saja diganti. Ucapkan kalimat Jepang 1 kalimat singkat:マイクを切り替えました、マスター。]".to_string(),
-                            },
-                        ];
-
-                        if let Some((jp, id)) = query_ollama(&client, &switch_prompt, Arc::clone(&gui)).await {
-                            {
-                                let mut g = gui.lock().unwrap();
-                                g.sub_jp = jp.clone();
-                                g.sub_id = id.clone();
-                            }
-                            play_voicevox(&client, &jp, Arc::clone(&gui)).await;
-                            tokio::time::sleep(Duration::from_millis(1000)).await;
-                        }
-
+                        println!("{}", format!("🔄 Web UI: Mic ditukar ke {}", new_name).yellow().bold());
                         if !is_hardware_muted {
                             mic_controller.start(tx_speech.clone());
-                            last_interaction = Instant::now();
                         }
-
-                        {
-                            let mut g = gui.lock().unwrap();
-                            g.status_text = "LISTENING".to_string();
-                        }
+                    }
+                    'q' => {
+                        println!("{}", "👋 Keluar via Web UI.".yellow());
+                        mic_controller.stop();
+                        break;
                     }
                     _ => {}
                 }
             }
 
+            // Input Suara Pengguna
             Some(user_text) = rx_speech.recv(), if !is_hardware_muted => {
                 if app_state == AppState::VoiceSleep {
                     if is_wake_up_command(&user_text) {
@@ -710,14 +812,14 @@ async fn run_himari_backend(gui: Arc<Mutex<SharedGuiState>>, mut rx_action: toki
                         {
                             let mut g = gui.lock().unwrap();
                             g.is_sleeping = false;
-                            g.status_text = "WAKE UP DETECTED".to_string();
+                            g.status_text = "ONLINE".to_string();
                         }
 
                         let wake_prompt = vec![
                             chat_history[0].clone(),
                             ChatMessage {
                                 role: "user".to_string(),
-                                content: "[SISTEM: Master memanggil namamu untuk bangun. Ucapkan kalimat Jepang 1 kalimat lembut dan manis: はい、マスター！いつでもお話しできますよ。]".to_string(),
+                                content: "[SISTEM: Sayang (Yudha) memanggilmu untuk bangun. Ucapkan kalimat Jepang 1 kalimat lembut, manja, dan manis: はい、あなた！いつでもお話しできますよ。]".to_string(),
                             },
                         ];
 
@@ -748,10 +850,11 @@ async fn run_himari_backend(gui: Arc<Mutex<SharedGuiState>>, mut rx_action: toki
 
                 {
                     let mut g = gui.lock().unwrap();
-                    g.sub_id = format!("Master: \"{}\"", user_text);
+                    g.sub_id = format!("Sayang: \"{}\"", user_text);
                     g.status_text = "PROCESSING".to_string();
                 }
 
+                // 1. Fitur Perintah Ganti Mic
                 if is_voice_switch_mic_command(&user_text) {
                     let new_name = mic_controller.toggle_device();
                     {
@@ -761,7 +864,7 @@ async fn run_himari_backend(gui: Arc<Mutex<SharedGuiState>>, mut rx_action: toki
                     
                     if let Some((jp, id)) = query_ollama(&client, &[
                         chat_history[0].clone(),
-                        ChatMessage { role: "user".to_string(), content: "Ucapkan konfirmasi 1 kalimat: マイクを切り替えました、マスター。".to_string() }
+                        ChatMessage { role: "user".to_string(), content: "Ucapkan konfirmasi 1 kalimat manis: マイクを切り替えましたよ、あなた。".to_string() }
                     ], Arc::clone(&gui)).await {
                         {
                             let mut g = gui.lock().unwrap();
@@ -781,20 +884,21 @@ async fn run_himari_backend(gui: Arc<Mutex<SharedGuiState>>, mut rx_action: toki
                     continue;
                 }
 
+                // 2. Fitur Perintah Sleep Mode
                 if is_voice_sleep_command(&user_text) {
                     app_state = AppState::VoiceSleep;
 
                     {
                         let mut g = gui.lock().unwrap();
                         g.is_sleeping = true;
-                        g.status_text = "STANDBY SLEEP".to_string();
+                        g.status_text = "SLEEP MODE".to_string();
                     }
 
                     let sleep_prompt = vec![
                         chat_history[0].clone(),
                         ChatMessage {
                             role: "user".to_string(),
-                            content: "[SISTEM: Master memintamu mute/diam dulu untuk fokus. Ucapkan kalimat Jepang 1 kalimat sangat lembut: わかりました、静かに待っていますね。呼んでください。]".to_string(),
+                            content: "[SISTEM: Sayang memintamu tidur/diam dulu. Ucapkan kalimat Jepang 1 kalimat sangat lembut: わかりました、静かに待っていますね、あなた。おやすみなさい。]".to_string(),
                         },
                     ];
 
@@ -812,9 +916,61 @@ async fn run_himari_backend(gui: Arc<Mutex<SharedGuiState>>, mut rx_action: toki
                     continue;
                 }
 
+                // 3. Fitur Pengingat Timer / Bangunkan
+                if user_text.to_lowercase().contains("ingetin") || user_text.to_lowercase().contains("bangunin") || user_text.to_lowercase().contains("timer") {
+                    if let Some((secs, label)) = parse_timer_seconds(&user_text) {
+                        let notify_tx = tx_notify.clone();
+                        let timer_label = label.clone();
+                        tokio::spawn(async move {
+                            tokio::time::sleep(Duration::from_secs(secs)).await;
+                            let _ = notify_tx.send(format!("Waktunya bangun / waktu pengingat {} sudah habis!", timer_label)).await;
+                        });
+
+                        let confirm_prompt = vec![
+                            chat_history[0].clone(),
+                            ChatMessage {
+                                role: "user".to_string(),
+                                content: format!(
+                                    "[SISTEM: Sayang meminta diingatkan dalam {}. Beri konfirmasi 1 kalimat sangat manis bahwa kamu akan mengingatkannya tepat waktu.]",
+                                    label
+                                ),
+                            },
+                        ];
+
+                        if let Some((jp, id)) = query_ollama(&client, &confirm_prompt, Arc::clone(&gui)).await {
+                            {
+                                let mut g = gui.lock().unwrap();
+                                g.sub_jp = jp.clone();
+                                g.sub_id = id.clone();
+                            }
+                            play_voicevox(&client, &jp, Arc::clone(&gui)).await;
+                            tokio::time::sleep(Duration::from_millis(1000)).await;
+                        }
+
+                        mic_controller.start(tx_speech.clone());
+                        last_interaction = Instant::now();
+                        {
+                            let mut g = gui.lock().unwrap();
+                            g.status_text = "LISTENING".to_string();
+                        }
+                        continue;
+                    }
+                }
+
+                // 4. Fitur Cek Cuaca Fleksibel (Kapan Saja Tanpa Harus Sapaan Pagi)
+                let mut actual_user_prompt = user_text.clone();
+                if is_weather_inquiry(&user_text) {
+                    if let Some(weather) = fetch_weather_info().await {
+                        actual_user_prompt = format!(
+                            "{} [INFO DATA CUACA REAL-TIME SAAT INI: {}. Sampaikan informasi cuaca ini kepada Sayang dengan ramah, hangat, dan manis.]",
+                            user_text, weather
+                        );
+                    }
+                }
+
                 chat_history.push(ChatMessage {
                     role: "user".to_string(),
-                    content: user_text.clone(),
+                    content: actual_user_prompt,
                 });
 
                 if chat_history.len() > 15 {
@@ -845,74 +1001,128 @@ async fn run_himari_backend(gui: Arc<Mutex<SharedGuiState>>, mut rx_action: toki
                 }
             }
 
-            _ = interval.tick(), if !is_hardware_muted && app_state != AppState::VoiceSleep => {
-                let elapsed = last_interaction.elapsed().as_secs();
+            // Loop 1 Detik: Proactive Standby Timer + Win32 Mouse/Keyboard Screen Time Check + Cronjob Waktu
+            _ = interval.tick() => {
+                // A. Deteksi Gerak Mouse & Keyboard Windows Global via GetLastInputInfo
+                let idle_ms = get_windows_idle_millis();
+                if idle_ms < 60_000 {
+                    // Ada aktivitas fisik mouse / keyboard dalam 60 detik terakhir
+                    let delta = last_activity_check.elapsed().as_secs();
+                    continuous_active_seconds += delta;
+                } else if idle_ms > 300_000 {
+                    // User meninggalkan meja / idle lebih dari 5 menit -> reset timer lelah mata
+                    continuous_active_seconds = 0;
+                }
+                last_activity_check = Instant::now();
 
-                match app_state {
-                    AppState::Active => {
-                        if elapsed >= 30 {
-                            app_state = AppState::FirstWarning;
+                // Jika user terus aktif di depan layar selama 90 menit (5400 detik) tanpa istirahat:
+                if continuous_active_seconds >= 5400 && last_eye_warning.elapsed().as_secs() >= 3600 {
+                    last_eye_warning = Instant::now();
+                    let _ = tx_notify.send("Sayang, kamu sudah bekerja di depan layar cukup lama. Istirahatkan matamu sejenak dan minum air putih ya...".to_string()).await;
+                }
 
-                            mic_controller.stop();
-                            while rx_speech.try_recv().is_ok() {}
+                // B. Cronjob Waktu Otomatis (Jam 08:00 Pagi, Jam 12:00 Siang, Jam 19:00 Malam)
+                let (hour, minute) = get_local_hour_minute();
+                
+                // Reset flag harian saat tengah malam
+                if hour == 0 && minute == 0 && current_day_marker != 0 {
+                    last_cron_morning = false;
+                    last_cron_lunch = false;
+                    last_cron_dinner = false;
+                    current_day_marker = 0;
+                } else if hour != 0 {
+                    current_day_marker = hour;
+                }
 
-                            let idle_prompts = [
-                                "Master terdiam cukup lama. Tanyakan dengan lembut apakah beliau sedang melamun atau pusing.",
-                                "Suasana hening. Tanyakan Master sedang memikirkan apa.",
-                                "Master diam saja. Ingatkan Master untuk minum air hangat secara manis.",
-                            ];
-                            let chosen = idle_prompts.choose(&mut rand::thread_rng()).unwrap();
-                            let prompt = format!("[SISTEM: {} Panggil Master. Maksimal 1 kalimat.]", chosen);
+                // Jam 08:00 Pagi: Sapaan Selamat Pagi & Sarapan
+                if hour == 8 && minute == 0 && !last_cron_morning {
+                    last_cron_morning = true;
+                    let weather_str = fetch_weather_info().await.unwrap_or_else(|| "Cuaca cerah berawan".to_string());
+                    let _ = tx_notify.send(format!("Selamat pagi Sayang! Jangan lupa sarapan sebelum mulai aktivitas ya. Kondisi cuaca hari ini: {}.", weather_str)).await;
+                }
 
-                            let mut temp_hist = chat_history.clone();
-                            temp_hist.push(ChatMessage { role: "system".to_string(), content: prompt });
+                // Jam 12:00 Siang: Pengingat Makan Siang
+                if hour == 12 && minute == 0 && !last_cron_lunch {
+                    last_cron_lunch = true;
+                    let _ = tx_notify.send("Sayang, sudah jam 12 siang lho. Waktunya istirahat dan makan siang dulu ya...".to_string()).await;
+                }
 
-                            if let Some((jp, id)) = query_ollama(&client, &temp_hist, Arc::clone(&gui)).await {
-                                {
-                                    let mut g = gui.lock().unwrap();
-                                    g.sub_jp = jp.clone();
-                                    g.sub_id = id.clone();
+                // Jam 19:00 Malam: Pengingat Makan Malam
+                if hour == 19 && minute == 0 && !last_cron_dinner {
+                    last_cron_dinner = true;
+                    let _ = tx_notify.send("Sayang, hari sudah malam. Jangan lupa makan malam ya, jaga kesehatanmu...".to_string()).await;
+                }
+
+                // C. Proactive Idle Standby State Machine
+                if !is_hardware_muted && app_state != AppState::VoiceSleep {
+                    let elapsed = last_interaction.elapsed().as_secs();
+
+                    match app_state {
+                        AppState::Active => {
+                            if elapsed >= 30 {
+                                app_state = AppState::FirstWarning;
+
+                                mic_controller.stop();
+                                while rx_speech.try_recv().is_ok() {}
+
+                                let idle_prompts = [
+                                    "Sayang terdiam cukup lama. Tanyakan dengan lembut apakah Sayang sedang melamun atau lelah.",
+                                    "Suasana hening. Tanyakan Sayang sedang memikirkan apa.",
+                                    "Sayang diam saja. Ingatkan Sayang untuk minum air hangat secara manis.",
+                                ];
+                                let chosen = idle_prompts.choose(&mut rand::thread_rng()).unwrap();
+                                let prompt = format!("[SISTEM: {} Panggil dengan あなた (Anata) atau Sayang. Maksimal 1 kalimat.]", chosen);
+
+                                let mut temp_hist = chat_history.clone();
+                                temp_hist.push(ChatMessage { role: "system".to_string(), content: prompt });
+
+                                if let Some((jp, id)) = query_ollama(&client, &temp_hist, Arc::clone(&gui)).await {
+                                    {
+                                        let mut g = gui.lock().unwrap();
+                                        g.sub_jp = jp.clone();
+                                        g.sub_id = id.clone();
+                                    }
+                                    play_voicevox(&client, &jp, Arc::clone(&gui)).await;
+                                    tokio::time::sleep(Duration::from_millis(1000)).await;
                                 }
-                                play_voicevox(&client, &jp, Arc::clone(&gui)).await;
-                                tokio::time::sleep(Duration::from_millis(1000)).await;
+
+                                mic_controller.start(tx_speech.clone());
+                                last_interaction = Instant::now();
                             }
-
-                            mic_controller.start(tx_speech.clone());
-                            last_interaction = Instant::now();
                         }
-                    }
-                    AppState::FirstWarning => {
-                        if elapsed >= 30 {
-                            app_state = AppState::Standby;
+                        AppState::FirstWarning => {
+                            if elapsed >= 30 {
+                                app_state = AppState::Standby;
 
-                            mic_controller.stop();
-                            while rx_speech.try_recv().is_ok() {}
+                                mic_controller.stop();
+                                while rx_speech.try_recv().is_ok() {}
 
-                            let standby_prompt = "[SISTEM: Master tidak bersuara selama 1 menit penuh. Tinggalkan 1 pesan terakhir yang manis bahwa kamu akan menunggu dalam diam/standby di sini sampai Master memanggil lagi.]";
+                                let standby_prompt = "[SISTEM: Sayang tidak bersuara selama 1 menit penuh. Tinggalkan 1 pesan terakhir yang manis bahwa kamu akan menunggu dalam diam/standby di sini sampai Sayang memanggil lagi. Panggil あなた (Anata).]";
 
-                            let mut temp_hist = chat_history.clone();
-                            temp_hist.push(ChatMessage { role: "system".to_string(), content: standby_prompt.to_string() });
+                                let mut temp_hist = chat_history.clone();
+                                temp_hist.push(ChatMessage { role: "system".to_string(), content: standby_prompt.to_string() });
 
-                            if let Some((jp, id)) = query_ollama(&client, &temp_hist, Arc::clone(&gui)).await {
+                                if let Some((jp, id)) = query_ollama(&client, &temp_hist, Arc::clone(&gui)).await {
+                                    {
+                                        let mut g = gui.lock().unwrap();
+                                        g.sub_jp = jp.clone();
+                                        g.sub_id = id.clone();
+                                        g.status_text = "STANDBY".to_string();
+                                    }
+                                    play_voicevox(&client, &jp, Arc::clone(&gui)).await;
+                                    tokio::time::sleep(Duration::from_millis(1000)).await;
+                                }
+
+                                mic_controller.start(tx_speech.clone());
+                                last_interaction = Instant::now();
                                 {
                                     let mut g = gui.lock().unwrap();
-                                    g.sub_jp = jp.clone();
-                                    g.sub_id = id.clone();
                                     g.status_text = "STANDBY".to_string();
                                 }
-                                play_voicevox(&client, &jp, Arc::clone(&gui)).await;
-                                tokio::time::sleep(Duration::from_millis(1000)).await;
-                            }
-
-                            mic_controller.start(tx_speech.clone());
-                            last_interaction = Instant::now();
-                            {
-                                let mut g = gui.lock().unwrap();
-                                g.status_text = "STANDBY".to_string();
                             }
                         }
+                        AppState::Standby | AppState::VoiceSleep => {}
                     }
-                    AppState::Standby | AppState::VoiceSleep => {}
                 }
             }
         }
