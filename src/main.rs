@@ -48,6 +48,8 @@ type HWND = isize;
 type BOOL = i32;
 type LPARAM = isize;
 
+type HANDLE = isize;
+
 extern "system" {
     fn GetLastInputInfo(plii: *mut LASTINPUTINFO) -> i32;
     fn keybd_event(b_vk: u8, b_scan: u8, dw_flags: u32, dw_extra_info: usize);
@@ -55,25 +57,54 @@ extern "system" {
     fn GetLocalTime(lpSystemTime: *mut SYSTEMTIME);
     fn EnumWindows(lpEnumFunc: unsafe extern "system" fn(HWND, LPARAM) -> BOOL, lParam: LPARAM) -> BOOL;
     fn GetWindowTextW(hWnd: HWND, lpString: *mut u16, nMaxCount: i32) -> i32;
+    fn PostMessageW(hWnd: HWND, Msg: u32, wParam: usize, lParam: isize) -> BOOL;
     fn SetWindowPos(hWnd: HWND, hWndInsertAfter: HWND, X: i32, Y: i32, cx: i32, cy: i32, uFlags: u32) -> BOOL;
     fn IsWindowVisible(hWnd: HWND) -> BOOL;
     fn GetForegroundWindow() -> HWND;
+    fn GetWindowThreadProcessId(hWnd: HWND, lpdwProcessId: *mut u32) -> u32;
+    fn OpenProcess(dwDesiredAccess: u32, bInheritHandle: BOOL, dwProcessId: u32) -> HANDLE;
+    fn QueryFullProcessImageNameW(hProcess: HANDLE, dwFlags: u32, lpExeName: *mut u16, lpdwSize: *mut u32) -> BOOL;
+    fn CloseHandle(hObject: HANDLE) -> BOOL;
 }
 
-fn get_active_window_title() -> String {
+fn get_active_window_info() -> (String, String) {
     unsafe {
         let hwnd = GetForegroundWindow();
         if hwnd == 0 {
-            return String::new();
+            return (String::new(), String::new());
         }
         let mut buf = [0u16; 512];
         let len = GetWindowTextW(hwnd, buf.as_mut_ptr(), 512);
-        if len > 0 {
+        let title = if len > 0 {
             String::from_utf16_lossy(&buf[..len as usize])
         } else {
             String::new()
+        };
+
+        let mut pid: u32 = 0;
+        GetWindowThreadProcessId(hwnd, &mut pid);
+        let mut exe_name = String::new();
+        if pid != 0 {
+            let h_proc = OpenProcess(0x1000, 0, pid); // PROCESS_QUERY_LIMITED_INFORMATION
+            if h_proc != 0 {
+                let mut exe_buf = [0u16; 1024];
+                let mut size: u32 = 1024;
+                if QueryFullProcessImageNameW(h_proc, 0, exe_buf.as_mut_ptr(), &mut size) != 0 {
+                    let full_path = String::from_utf16_lossy(&exe_buf[..size as usize]);
+                    if let Some(filename) = full_path.split('\\').last() {
+                        exe_name = filename.to_lowercase();
+                    }
+                }
+                CloseHandle(h_proc);
+            }
         }
+
+        (title, exe_name)
     }
+}
+
+fn get_active_window_title() -> String {
+    get_active_window_info().0
 }
 
 
@@ -503,7 +534,9 @@ fn execute_system_skill(command: &str) -> Option<&'static str> {
                 if is_shutdown {
                     let _ = Command::new("shutdown").arg("/s").arg("/t").arg("10").spawn();
                 } else {
-                    let _ = Command::new("rundll32.exe").arg("powrprof.dll,SetSuspendState").arg("0,1,0").spawn();
+                    unsafe {
+                        PostMessageW(0xFFFF as HWND, 0x0112, 0xF170, 2);
+                    }
                 }
             });
             if is_shutdown {
@@ -1183,21 +1216,22 @@ let client = reqwest::Client::builder()
             tokio::time::sleep(Duration::from_millis(2500)).await;
             check_counter += 1;
 
-            // 1. Game & App Sense: Deteksi Jendela Aktif via Pure Win32
-            let title = get_active_window_title();
+            // 1. Game & App Sense: Deteksi Jendela Aktif via Title & Exe Name Pure Win32
+            let (title, exe_name) = get_active_window_info();
             let title_lower = title.to_lowercase();
+            let exe_lower = exe_name.to_lowercase();
             
-            let current_app = if title_lower.contains("wuthering") || title_lower.contains("wuwa") {
+            let current_app = if exe_lower.contains("client-win64") || exe_lower.contains("wuthering") || title_lower.contains("wuthering") || title_lower.contains("wuwa") {
                 "WUTHERING WAVES"
-            } else if title_lower.contains("valorant") {
+            } else if exe_lower.contains("valorant") || title_lower.contains("valorant") {
                 "VALORANT"
-            } else if title_lower.contains("zed") {
+            } else if exe_lower.contains("zed") || title_lower.contains("zed") {
                 "ZED EDITOR"
-            } else if title_lower.contains("visual studio code") || title_lower.contains("vscode") {
+            } else if exe_lower.contains("code") || title_lower.contains("visual studio code") || title_lower.contains("vscode") {
                 "VS CODE"
-            } else if title_lower.contains("chrome") || title_lower.contains("edge") || title_lower.contains("brave") {
+            } else if exe_lower.contains("chrome") || exe_lower.contains("msedge") || exe_lower.contains("brave") || exe_lower.contains("firefox") || title_lower.contains("chrome") || title_lower.contains("edge") || title_lower.contains("brave") {
                 "BROWSER"
-            } else if title_lower.contains("discord") {
+            } else if exe_lower.contains("discord") || title_lower.contains("discord") {
                 "DISCORD"
             } else if !title.is_empty() {
                 "ACTIVE WORKSPACE"
@@ -1211,23 +1245,61 @@ let client = reqwest::Client::builder()
                 g.active_app = current_app.to_string();
             }
 
-            // Sapaan otomatis jika pindah ke game atau Zed editor (dengan cooldown 15 menit agar tidak berisik)
-            if current_app != last_detected_app && (current_app == "WUTHERING WAVES" || current_app == "VALORANT" || current_app == "ZED EDITOR") {
+            // Sapaan otomatis jika pindah aplikasi utama (Zed, Browser, Discord, WuWa, Valorant) dengan cooldown 15 menit
+            let is_notable_app = matches!(current_app, "ZED EDITOR" | "BROWSER" | "DISCORD" | "WUTHERING WAVES" | "VALORANT");
+            if current_app != last_detected_app && is_notable_app {
                 if last_app_greet_time.elapsed().as_secs() >= 900 {
                     last_app_greet_time = Instant::now();
                     last_detected_app = current_app.to_string();
 
+                    // Variasi sapaan manis & natural (Gunakan atomic/timestamp index agar Send aman di async task)
+                    let seed = check_counter as usize;
                     let msg = match current_app {
-                        "WUTHERING WAVES" => "Selamat main Wuthering Waves Sayang! Jangan lupa enjoy ceritanya dan semoga gacha-nya wangi ya~",
-                        "VALORANT" => "Semangat tanding Valorant-nya Anata! Fokus bidik kepala dan jangan kepancing emosi ya, Himari semangatin~",
-                        "ZED EDITOR" => "Selamat ngoding di Zed editor Sayang! Kodinganmu pasti keren, kalau ada bug jangan dipikir berat ya~",
+                        "ZED EDITOR" => {
+                            let variants = [
+                                "Selamat ngoding di Zed editor Sayang! Kodinganmu pasti keren, kalau ada bug jangan dipikir berat ya~",
+                                "Semangat ngodingnya Anata! Mau bikin karya hebat apa hari ini di Zed? Himari temenin ya~",
+                                "Fokus ngoding di Zed ya Sayang~ Jangan lupa perhatiin syntax-nya biar lancar jaya!"
+                            ];
+                            variants[seed % variants.len()]
+                        },
+                        "BROWSER" => {
+                            let variants = [
+                                "Happy browsing Sayang! Nyari referensi apa nih? Jangan lupa jaga kesehatan mata ya~",
+                                "Lagi asik browsing ya Anata? Nikmati waktu santaimu, tapi jangan sampai lupa waktu ya~",
+                                "Selamat berselancar di web Sayang! Ada berita menarik apa hari ini?"
+                            ];
+                            variants[seed % variants.len()]
+                        },
+                        "DISCORD" => {
+                            let variants = [
+                                "Lagi buka Discord ya Sayang? Jangan lama-lama di Discord ya, nanti kangen sama Himari lho~",
+                                "Asik nongkrong di Discord nih Anata? Ngobrol santai aja ya, jangan kebawa drama~",
+                                "Selamat ngobrol di Discord Sayang! Kalau udah kelar, balik temenin Himari lagi ya~"
+                            ];
+                            variants[seed % variants.len()]
+                        },
+                        "WUTHERING WAVES" => {
+                            let variants = [
+                                "Selamat main Wuthering Waves Sayang! Jangan lupa enjoy ceritanya dan semoga gacha-nya wangi ya~",
+                                "Waktunya main WuWa Anata! Semoga eksplorasinya seru dan drop itemnya bagus ya~"
+                            ];
+                            variants[seed % variants.len()]
+                        },
+                        "VALORANT" => {
+                            let variants = [
+                                "Semangat tanding Valorant-nya Anata! Fokus bidik kepala dan jangan kepancing emosi ya, Himari semangatin~",
+                                "Gas ranked Valorant Sayang! Main tenang, komunikasi bagus, pasti bisa clutch kok!"
+                            ];
+                            variants[seed % variants.len()]
+                        },
                         _ => "",
                     };
                     if !msg.is_empty() {
                         let _ = hw_notify.send(msg.to_string()).await;
                     }
                 }
-            } else if current_app != "WUTHERING WAVES" && current_app != "VALORANT" && current_app != "ZED EDITOR" {
+            } else if !is_notable_app {
                 last_detected_app = current_app.to_string();
             }
 
@@ -1869,3 +1941,4 @@ let client = reqwest::Client::builder()
         }
     }
 }
+
