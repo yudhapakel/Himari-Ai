@@ -358,43 +358,68 @@ fn execute_system_skill(command: &str) -> Option<&'static str> {
     let cmd = command.to_lowercase();
     
     // 1. Kontrol Volume Audio Windows (Native Win32 VK_VOLUME_DOWN & VK_VOLUME_UP)
-    if cmd.contains("kecilkan suara") || cmd.contains("kecilkan volume") || cmd.contains("volume turun") || cmd.contains("turunkan volume") || cmd.contains("pelankan") {
-        unsafe {
-            for _ in 0..6 {
-                keybd_event(0xAE, 0, 0, 0);
-                keybd_event(0xAE, 0, 2, 0);
+    if cmd.contains("volume") || cmd.contains("suara") || cmd.contains("pelankan") || cmd.contains("kencangkan") {
+        // Cek apakah ada angka persentase spesifik (misal "atur volume ke 30 persen" / "volume 70")
+        let re_num = Regex::new(r"(\d+)\s*(?:persen|%)?").unwrap();
+        let target_percent = if let Some(caps) = re_num.captures(&cmd) {
+            caps[1].parse::<u32>().ok().filter(|&p| p <= 100)
+        } else {
+            None
+        };
+
+        if let Some(target) = target_percent {
+            unsafe {
+                // Kalibrasi ke 0% dulu (50x volume down @ 2% per step)
+                for _ in 0..50 {
+                    keybd_event(0xAE, 0, 0, 0);
+                    keybd_event(0xAE, 0, 2, 0);
+                }
+                // Naikkan tepat ke target% (tiap step naikin 2%)
+                let up_steps = (target + 1) / 2;
+                for _ in 0..up_steps {
+                    keybd_event(0xAF, 0, 0, 0);
+                    keybd_event(0xAF, 0, 2, 0);
+                }
             }
-        }
-        Some("Menurunkan volume sistem audio...")
-    } else if cmd.contains("besarkan suara") || cmd.contains("besarkan volume") || cmd.contains("volume naik") || cmd.contains("naikkan volume") || cmd.contains("kencangkan") {
-        unsafe {
-            for _ in 0..6 {
-                keybd_event(0xAF, 0, 0, 0);
-                keybd_event(0xAF, 0, 2, 0);
+            Some("Mengatur volume sistem audio ke tingkat yang diminta...")
+        } else if cmd.contains("kecilkan") || cmd.contains("turun") || cmd.contains("pelan") {
+            unsafe {
+                for _ in 0..6 {
+                    keybd_event(0xAE, 0, 0, 0);
+                    keybd_event(0xAE, 0, 2, 0);
+                }
             }
+            Some("Menurunkan volume audio...")
+        } else if cmd.contains("besarkan") || cmd.contains("naik") || cmd.contains("kencang") {
+            unsafe {
+                for _ in 0..6 {
+                    keybd_event(0xAF, 0, 0, 0);
+                    keybd_event(0xAF, 0, 2, 0);
+                }
+            }
+            Some("Menaikkan volume audio...")
+        } else {
+            None
         }
-        Some("Menaikkan volume sistem audio...")
     } 
     // 2. Play / Pause Media Global (VK_MEDIA_PLAY_PAUSE)
-    else if cmd.contains("pause musik") || cmd.contains("jeda lagu") || cmd.contains("pause lagu") || cmd.contains("jeda musik") || cmd.contains("stop musik") {
+    else if cmd.contains("pause musik") || cmd.contains("jeda lagu") || cmd.contains("pause lagu") || cmd.contains("jeda musik") || cmd.contains("stop musik") || cmd.contains("berhenti musik") {
         unsafe {
             keybd_event(0xB3, 0, 0, 0);
             keybd_event(0xB3, 0, 2, 0);
         }
         Some("Menjeda pemutaran musik...")
     } 
-    // 3. YouTube Music Web Launcher (Tanpa Perlu Install Aplikasi Spotify / Client Apapun!)
-    else if cmd.contains("putar musik") || cmd.contains("puterin musik") || cmd.contains("setel musik") || cmd.contains("play musik") || cmd.contains("putar lagu") || cmd.contains("puterin lagu") || cmd.contains("setel lagu") || cmd.contains("play lagu") || cmd.contains("youtube music") || cmd.contains("yt music") {
-        // Cek apakah ada query lagu spesifik (misal "putar lagu lofi")
-        let target_url = if cmd.contains("lofi") {
-            "https://music.youtube.com/search?q=lofi+chill"
-        } else if cmd.contains("jepang") || cmd.contains("anime") {
-            "https://music.youtube.com/search?q=japanese+chill"
+    // 3. YouTube Music / Lofi Radio Autoplay Launcher (Langsung Berputar Bunyi!)
+    else if cmd.contains("putar musik") || cmd.contains("puterin musik") || cmd.contains("setel musik") || cmd.contains("play musik") || cmd.contains("putar lagu") || cmd.contains("puterin lagu") || cmd.contains("setel lagu") || cmd.contains("play lagu") || cmd.contains("youtube music") || cmd.contains("yt music") || cmd.contains("musik") {
+        // URL video YouTube / Livestream yang LANGSUNG AUTOPLAY berbunyi tanpa klik!
+        let target_url = if cmd.contains("jepang") || cmd.contains("anime") {
+            "https://www.youtube.com/watch?v=5qap5aO4i9A&autoplay=1" // Lofi Anime 24/7
         } else {
-            "https://music.youtube.com"
+            "https://www.youtube.com/watch?v=jfKfPfyJRdk&autoplay=1" // Lofi Girl beats to relax/study 24/7 (Autoplay!)
         };
         let _ = Command::new("cmd").arg("/c").arg("start").arg(target_url).spawn();
-        Some("Membuka YouTube Music di browser...")
+        Some("Memutar radio musik lofi santai untuk Sayang...")
     } 
     // 4. Aplikasi Produktivitas Windows Cepat
     else if cmd.contains("buka notepad") || cmd.contains("catatan") {
