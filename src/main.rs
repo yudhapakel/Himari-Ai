@@ -57,7 +57,25 @@ extern "system" {
     fn GetWindowTextW(hWnd: HWND, lpString: *mut u16, nMaxCount: i32) -> i32;
     fn SetWindowPos(hWnd: HWND, hWndInsertAfter: HWND, X: i32, Y: i32, cx: i32, cy: i32, uFlags: u32) -> BOOL;
     fn IsWindowVisible(hWnd: HWND) -> BOOL;
+    fn GetForegroundWindow() -> HWND;
 }
+
+fn get_active_window_title() -> String {
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd == 0 {
+            return String::new();
+        }
+        let mut buf = [0u16; 512];
+        let len = GetWindowTextW(hwnd, buf.as_mut_ptr(), 512);
+        if len > 0 {
+            String::from_utf16_lossy(&buf[..len as usize])
+        } else {
+            String::new()
+        }
+    }
+}
+
 
 unsafe extern "system" fn enum_window_topmost_callback(hwnd: HWND, _lparam: LPARAM) -> BOOL {
     if IsWindowVisible(hwnd) != 0 {
@@ -81,7 +99,6 @@ fn set_himari_window_topmost() {
 }
 
 
-#[link(name = "kernel32")]
 
 
 fn get_windows_idle_millis() -> u64 {
@@ -212,6 +229,10 @@ struct SharedGuiState {
     tool_detail: String,
     kaomoji: String,
     history: Vec<ChatHistoryEntry>,
+    gpu_temp: u32,
+    vram_used_mb: u32,
+    vram_total_mb: u32,
+    active_app: String,
 }
 
 impl Default for SharedGuiState {
@@ -230,6 +251,10 @@ impl Default for SharedGuiState {
             tool_detail: "".to_string(),
             kaomoji: "(｡•̀ᴗ-)✧".to_string(),
             history: Vec::new(),
+            gpu_temp: 45,
+            vram_used_mb: 9800,
+            vram_total_mb: 12288,
+            active_app: "DESKTOP".to_string(),
         }
     }
 }
@@ -438,14 +463,59 @@ fn execute_system_skill(command: &str) -> Option<&'static str> {
             None
         }
     } 
-    // 2. Play / Pause Media Global (VK_MEDIA_PLAY_PAUSE)
-    else if cmd.contains("pause musik") || cmd.contains("jeda lagu") || cmd.contains("pause lagu") || cmd.contains("jeda musik") || cmd.contains("stop musik") || cmd.contains("berhenti musik") {
+    // 2. Play / Pause / Next / Prev Media Global (Win32 VK Keys)
+    else if cmd.contains("next") || cmd.contains("lagu selanjutnya") || cmd.contains("ganti lagu") || cmd.contains("skip lagu") {
         unsafe {
+            // VK_MEDIA_NEXT_TRACK = 0xB0
+            keybd_event(0xB0, 0, 0, 0);
+            keybd_event(0xB0, 0, 2, 0);
+        }
+        Some("Memutar lagu selanjutnya...")
+    }
+    else if cmd.contains("prev") || cmd.contains("lagu sebelumnya") || cmd.contains("ulang lagu") {
+        unsafe {
+            // VK_MEDIA_PREV_TRACK = 0xB1
+            keybd_event(0xB1, 0, 0, 0);
+            keybd_event(0xB1, 0, 2, 0);
+        }
+        Some("Memutar lagu sebelumnya...")
+    }
+    else if cmd.contains("pause musik") || cmd.contains("jeda lagu") || cmd.contains("pause lagu") || cmd.contains("jeda musik") || cmd.contains("stop musik") || cmd.contains("berhenti musik") || cmd.contains("lanjut lagu") || cmd.contains("play lagi") {
+        unsafe {
+            // VK_MEDIA_PLAY_PAUSE = 0xB3
             keybd_event(0xB3, 0, 0, 0);
             keybd_event(0xB3, 0, 2, 0);
         }
-        Some("Menjeda pemutaran musik...")
+        Some("Mengalihkan pemutaran musik...")
     } 
+
+    // 2.1 Sleep / Shutdown Timer Windows
+    else if (cmd.contains("matiin pc") || cmd.contains("shutdown pc") || cmd.contains("tidurin pc") || cmd.contains("sleep pc")) && (cmd.contains("menit") || cmd.contains("jam") || cmd.contains("detik")) {
+        // Parse time
+        let re_time = Regex::new(r"(\d+)\s*(?:menit|mnt|jam|detik)").unwrap();
+        if let Some(caps) = re_time.captures(&cmd) {
+            let val = caps[1].parse::<u64>().unwrap_or(30);
+            let secs = if cmd.contains("jam") { val * 3600 } else if cmd.contains("detik") { val } else { val * 60 };
+            let is_shutdown = cmd.contains("matiin") || cmd.contains("shutdown");
+            
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(secs)).await;
+                if is_shutdown {
+                    let _ = Command::new("shutdown").arg("/s").arg("/t").arg("10").spawn();
+                } else {
+                    let _ = Command::new("rundll32.exe").arg("powrprof.dll,SetSuspendState").arg("0,1,0").spawn();
+                }
+            });
+            if is_shutdown {
+                Some("Timer matiin PC berhasil disetel...")
+            } else {
+                Some("Timer sleep PC berhasil disetel...")
+            }
+        } else {
+            None
+        }
+    }
+
     // 3. YouTube Music / Video Autoplay Launcher (Bisa Request Lagu Bebas!)
     else if cmd.contains("putar") || cmd.contains("puter") || cmd.contains("setel") || cmd.contains("play") || cmd.contains("lagu") || cmd.contains("musik") {
         let triggers = [
@@ -995,7 +1065,7 @@ fn add_chat_history_fifo(gui: Arc<Mutex<SharedGuiState>>, role: &str, text: &str
 #[tokio::main]
 async fn main() {
     println!("{}", "====================================================================".magenta());
-    println!("{}", "🦀 HIMARI ENGINE v7.5.3.3: SELF-LEARNING & SKILLS RUNTIME 🦀".bold().magenta());
+    println!("{}", "🦀 HIMARI ENGINE v7.6.0.3: SELF-LEARNING & SKILLS RUNTIME 🦀".bold().magenta());
     println!("{}", "   [Edge App Window • Background Compaction • Windows Native Skills]".cyan());
     println!("{}", "====================================================================".magenta());
 
@@ -1097,6 +1167,102 @@ let client = reqwest::Client::builder()
     }
 
     println!("{}", "✨ Himari Engine Siap! [M]: Mute | [S]: Switch Mic | [H]: History | [ESC]: Keluar".cyan());
+
+
+    // --- 🎮 Game & App Sense + 📊 Hardware Doctor Daemon (Batch A) ---
+    let hw_gui = Arc::clone(&gui_state);
+    let hw_notify = tx_notify.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(4000)).await;
+        let mut last_detected_app = String::new();
+        let mut last_app_greet_time = Instant::now();
+        let mut last_gpu_warning_time = Instant::now();
+        let mut check_counter = 0u32;
+
+        loop {
+            tokio::time::sleep(Duration::from_millis(2500)).await;
+            check_counter += 1;
+
+            // 1. Game & App Sense: Deteksi Jendela Aktif via Pure Win32
+            let title = get_active_window_title();
+            let title_lower = title.to_lowercase();
+            
+            let current_app = if title_lower.contains("wuthering") || title_lower.contains("wuwa") {
+                "WUTHERING WAVES"
+            } else if title_lower.contains("valorant") {
+                "VALORANT"
+            } else if title_lower.contains("zed") {
+                "ZED EDITOR"
+            } else if title_lower.contains("visual studio code") || title_lower.contains("vscode") {
+                "VS CODE"
+            } else if title_lower.contains("chrome") || title_lower.contains("edge") || title_lower.contains("brave") {
+                "BROWSER"
+            } else if title_lower.contains("discord") {
+                "DISCORD"
+            } else if !title.is_empty() {
+                "ACTIVE WORKSPACE"
+            } else {
+                "DESKTOP"
+            };
+
+            // Update state ke HUD
+            {
+                let mut g = hw_gui.lock().unwrap();
+                g.active_app = current_app.to_string();
+            }
+
+            // Sapaan otomatis jika pindah ke game atau Zed editor (dengan cooldown 15 menit agar tidak berisik)
+            if current_app != last_detected_app && (current_app == "WUTHERING WAVES" || current_app == "VALORANT" || current_app == "ZED EDITOR") {
+                if last_app_greet_time.elapsed().as_secs() >= 900 {
+                    last_app_greet_time = Instant::now();
+                    last_detected_app = current_app.to_string();
+
+                    let msg = match current_app {
+                        "WUTHERING WAVES" => "Selamat main Wuthering Waves Sayang! Jangan lupa enjoy ceritanya dan semoga gacha-nya wangi ya~",
+                        "VALORANT" => "Semangat tanding Valorant-nya Anata! Fokus bidik kepala dan jangan kepancing emosi ya, Himari semangatin~",
+                        "ZED EDITOR" => "Selamat ngoding di Zed editor Sayang! Kodinganmu pasti keren, kalau ada bug jangan dipikir berat ya~",
+                        _ => "",
+                    };
+                    if !msg.is_empty() {
+                        let _ = hw_notify.send(msg.to_string()).await;
+                    }
+                }
+            } else if current_app != "WUTHERING WAVES" && current_app != "VALORANT" && current_app != "ZED EDITOR" {
+                last_detected_app = current_app.to_string();
+            }
+
+            // 2. Hardware Doctor: Monitor Suhu GPU & VRAM Tiap ~5 Detik (setiap 2 tick)
+            if check_counter % 2 == 0 {
+                if let Ok(output) = Command::new("nvidia-smi")
+                    .arg("--query-gpu=temperature.gpu,memory.used,memory.total")
+                    .arg("--format=csv,noheader,nounits")
+                    .output() {
+                    if output.status.success() {
+                        let text_out = String::from_utf8_lossy(&output.stdout);
+                        let parts: Vec<&str> = text_out.trim().split(',').map(|s| s.trim()).collect();
+                        if parts.len() >= 3 {
+                            let temp = parts[0].parse::<u32>().unwrap_or(45);
+                            let used = parts[1].parse::<u32>().unwrap_or(9800);
+                            let total = parts[2].parse::<u32>().unwrap_or(12288);
+
+                            {
+                                let mut g = hw_gui.lock().unwrap();
+                                g.gpu_temp = temp;
+                                g.vram_used_mb = used;
+                                g.vram_total_mb = total;
+                            }
+
+                            // Alert Suhu Tinggi jika GPU > 83°C (cooldown 20 menit)
+                            if temp >= 83 && last_gpu_warning_time.elapsed().as_secs() >= 1200 {
+                                last_gpu_warning_time = Instant::now();
+                                let _ = hw_notify.send(format!("Sayang, suhu GPU RTX 3060 kamu cukup panas nih, sudah {} derajat Celcius! Istirahatkan sejenak ya...", temp)).await;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
 
     // --- State Tracker untuk Health Monitor & Internal Cronjob ---
     let mut last_activity_check = Instant::now();
