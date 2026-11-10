@@ -1175,7 +1175,7 @@ let client = reqwest::Client::builder()
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(4000)).await;
         let mut last_detected_app = String::new();
-        let mut last_app_greet_time = Instant::now();
+        let mut last_app_greet_time = Instant::now() - Duration::from_secs(1000);
         let mut last_gpu_warning_time = Instant::now();
         let mut check_counter = 0u32;
 
