@@ -313,14 +313,15 @@ fn infer_kaomoji_fallback(text: &str) -> &'static str {
 }
 
 async fn fetch_weather_info() -> Option<String> {
-        // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar
+        // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar (Silent Out-Null)
     tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(2000)).await;
+        tokio::time::sleep(Duration::from_millis(2500)).await;
         loop {
-            tokio::time::sleep(Duration::from_millis(1500)).await;
+            tokio::time::sleep(Duration::from_millis(2000)).await;
             let _ = Command::new("powershell")
+                .arg("-NoProfile")
                 .arg("-Command")
-                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) }")
+                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) } | Out-Null")
                 .spawn();
         }
     });
@@ -339,14 +340,15 @@ async fn fetch_weather_info() -> Option<String> {
 }
 
 async fn fetch_wikipedia_search(query: &str) -> Option<String> {
-        // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar
+        // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar (Silent Out-Null)
     tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(2000)).await;
+        tokio::time::sleep(Duration::from_millis(2500)).await;
         loop {
-            tokio::time::sleep(Duration::from_millis(1500)).await;
+            tokio::time::sleep(Duration::from_millis(2000)).await;
             let _ = Command::new("powershell")
+                .arg("-NoProfile")
                 .arg("-Command")
-                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) }")
+                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) } | Out-Null")
                 .spawn();
         }
     });
@@ -465,14 +467,15 @@ fn execute_system_skill(command: &str) -> Option<&'static str> {
             println!("{}", format!("🎵 [MUSIC SKILL] Mencari lagu di YouTube: {}", query).green());
             let q_clone = query.to_string();
             tokio::spawn(async move {
-                    // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar
+                    // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar (Silent Out-Null)
     tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(2000)).await;
+        tokio::time::sleep(Duration::from_millis(2500)).await;
         loop {
-            tokio::time::sleep(Duration::from_millis(1500)).await;
+            tokio::time::sleep(Duration::from_millis(2000)).await;
             let _ = Command::new("powershell")
+                .arg("-NoProfile")
                 .arg("-Command")
-                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) }")
+                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) } | Out-Null")
                 .spawn();
         }
     });
@@ -531,14 +534,15 @@ fn execute_system_skill(command: &str) -> Option<&'static str> {
 // --- SELF-LEARNING & CONTEXT COMPACTION (BACKGROUND TOKIO TASKS) ---
 fn spawn_self_learning(user_text: String) {
     tokio::spawn(async move {
-            // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar
+            // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar (Silent Out-Null)
     tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(2000)).await;
+        tokio::time::sleep(Duration::from_millis(2500)).await;
         loop {
-            tokio::time::sleep(Duration::from_millis(1500)).await;
+            tokio::time::sleep(Duration::from_millis(2000)).await;
             let _ = Command::new("powershell")
+                .arg("-NoProfile")
                 .arg("-Command")
-                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) }")
+                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) } | Out-Null")
                 .spawn();
         }
     });
@@ -590,14 +594,15 @@ Jika TIDAK ADA fakta baru yang relevan, jawab persis: "NONE"."#,
 
 fn spawn_context_compaction(turns_to_compact: Vec<ChatMessage>) {
     tokio::spawn(async move {
-            // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar
+            // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar (Silent Out-Null)
     tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(2000)).await;
+        tokio::time::sleep(Duration::from_millis(2500)).await;
         loop {
-            tokio::time::sleep(Duration::from_millis(1500)).await;
+            tokio::time::sleep(Duration::from_millis(2000)).await;
             let _ = Command::new("powershell")
+                .arg("-NoProfile")
                 .arg("-Command")
-                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) }")
+                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) } | Out-Null")
                 .spawn();
         }
     });
@@ -998,7 +1003,7 @@ fn add_chat_history_fifo(gui: Arc<Mutex<SharedGuiState>>, role: &str, text: &str
 #[tokio::main]
 async fn main() {
     println!("{}", "====================================================================".magenta());
-    println!("{}", "🦀 HIMARI ENGINE v7.5: SELF-LEARNING & SKILLS RUNTIME 🦀".bold().magenta());
+    println!("{}", "🦀 HIMARI ENGINE v7.5.1: SELF-LEARNING & SKILLS RUNTIME 🦀".bold().magenta());
     println!("{}", "   [Edge App Window • Background Compaction • Windows Native Skills]".cyan());
     println!("{}", "====================================================================".magenta());
 
@@ -1062,14 +1067,15 @@ async fn main() {
             .spawn();
     });
 
-        // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar
+        // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar (Silent Out-Null)
     tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(2000)).await;
+        tokio::time::sleep(Duration::from_millis(2500)).await;
         loop {
-            tokio::time::sleep(Duration::from_millis(1500)).await;
+            tokio::time::sleep(Duration::from_millis(2000)).await;
             let _ = Command::new("powershell")
+                .arg("-NoProfile")
                 .arg("-Command")
-                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) }")
+                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) } | Out-Null")
                 .spawn();
         }
     });
@@ -1106,6 +1112,7 @@ async fn main() {
 
     // --- State Tracker untuk Health Monitor & Internal Cronjob ---
     let mut last_activity_check = Instant::now();
+    let (tx_user_intent, mut rx_user_intent) = tokio::sync::mpsc::channel::<String>(32);
     let mut continuous_active_seconds: u64 = 0;
     let mut last_eye_warning = Instant::now();
 
@@ -1249,14 +1256,19 @@ async fn main() {
                 }
             }
 
-                        // Input Teks Langsung dari Cyberpunk Text Input Box di Web HUD
-            Some(text_input) = rx_text.recv() => {
-                println!("{}", format!("⌨️ [TEXT INPUT] Diterima dari HUD: {}", text_input).green().bold());
-                let _ = tx_speech.send(text_input).await;
+            // Terima dari Mic (Hanya jika TIDAK di-mute)
+            Some(speech) = rx_speech.recv(), if !is_hardware_muted => {
+                let _ = tx_user_intent.send(speech).await;
             }
 
-            // Input Suara Pengguna
-            Some(user_text) = rx_speech.recv(), if !is_hardware_muted => {
+            // Terima dari Text Input HUD (BEBAS! Tetap jalan saat Mic di-MUTE)
+            Some(txt) = rx_text.recv() => {
+                println!("{}", format!("⌨️ [TEXT INPUT] Diterima dari HUD: {}", txt).green().bold());
+                let _ = tx_user_intent.send(txt).await;
+            }
+
+            // Eksekusi Semua Perintah (Suara & Teks)
+            Some(user_text) = rx_user_intent.recv() => {
                 if app_state == AppState::VoiceSleep {
                     if is_wake_up_command(&user_text) {
                         mic_controller.stop();
@@ -1538,16 +1550,13 @@ async fn main() {
                     chat_history = [vec![chat_history[0].clone()], remaining].concat();
                 }
 
-                    // Mainkan suara filler lembut saat mulai berpikir agar tidak hening kaku
+                    // Suara filler cepat saat mulai berpikir
     let filler_client = client.clone();
     let filler_gui = Arc::clone(&gui);
     tokio::spawn(async move {
-        let fillers = [
-            "んー、ちょっと待ってね。",
-            "えっとね、",
-            "そうですね、",
-        ];
-        let chosen = fillers.choose(&mut rand::thread_rng()).unwrap();
+        // Gunakan frasa jepang sederhana & umum yang 100% cepat di-sintesis VOICEVOX
+        let fillers = ["ちょっとまってね", "えっとね", "そうですね"];
+        let chosen = fillers.choose(&mut rand::thread_rng()).unwrap_or(&"えっとね");
         play_voicevox(&filler_client, chosen, filler_gui).await;
     });
 
