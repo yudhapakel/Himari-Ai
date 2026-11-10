@@ -43,17 +43,46 @@ struct SYSTEMTIME {
     w_milliseconds: u16,
 }
 
-#[link(name = "user32")]
+
+type HWND = isize;
+type BOOL = i32;
+type LPARAM = isize;
+
 extern "system" {
     fn GetLastInputInfo(plii: *mut LASTINPUTINFO) -> i32;
     fn keybd_event(b_vk: u8, b_scan: u8, dw_flags: u32, dw_extra_info: usize);
-}
-
-#[link(name = "kernel32")]
-extern "system" {
     fn GetTickCount() -> u32;
     fn GetLocalTime(lpSystemTime: *mut SYSTEMTIME);
+    fn EnumWindows(lpEnumFunc: unsafe extern "system" fn(HWND, LPARAM) -> BOOL, lParam: LPARAM) -> BOOL;
+    fn GetWindowTextW(hWnd: HWND, lpString: *mut u16, nMaxCount: i32) -> i32;
+    fn SetWindowPos(hWnd: HWND, hWndInsertAfter: HWND, X: i32, Y: i32, cx: i32, cy: i32, uFlags: u32) -> BOOL;
+    fn IsWindowVisible(hWnd: HWND) -> BOOL;
 }
+
+unsafe extern "system" fn enum_window_topmost_callback(hwnd: HWND, _lparam: LPARAM) -> BOOL {
+    if IsWindowVisible(hwnd) != 0 {
+        let mut buf = [0u16; 512];
+        let len = GetWindowTextW(hwnd, buf.as_mut_ptr(), 512);
+        if len > 0 {
+            let title = String::from_utf16_lossy(&buf[..len as usize]);
+            if title.contains("HIMARI") {
+                // Set to HWND_TOPMOST (-1), SWP_NOMOVE (2) | SWP_NOSIZE (1) | SWP_NOACTIVATE (0x0010)
+                SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010);
+            }
+        }
+    }
+    1
+}
+
+fn set_himari_window_topmost() {
+    unsafe {
+        EnumWindows(enum_window_topmost_callback, 0);
+    }
+}
+
+
+#[link(name = "kernel32")]
+
 
 fn get_windows_idle_millis() -> u64 {
     unsafe {
@@ -314,20 +343,7 @@ fn infer_kaomoji_fallback(text: &str) -> &'static str {
 }
 
 async fn fetch_weather_info() -> Option<String> {
-        // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar (Silent Out-Null)
-    tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(2500)).await;
-        loop {
-            tokio::time::sleep(Duration::from_millis(2000)).await;
-            let _ = Command::new("powershell")
-                .arg("-NoProfile")
-                .arg("-Command")
-                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) } | Out-Null")
-                .spawn();
-        }
-    });
-
-    let client = reqwest::Client::builder()
+let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(3))
         .build()
         .ok()?;
@@ -341,20 +357,7 @@ async fn fetch_weather_info() -> Option<String> {
 }
 
 async fn fetch_wikipedia_search(query: &str) -> Option<String> {
-        // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar (Silent Out-Null)
-    tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(2500)).await;
-        loop {
-            tokio::time::sleep(Duration::from_millis(2000)).await;
-            let _ = Command::new("powershell")
-                .arg("-NoProfile")
-                .arg("-Command")
-                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) } | Out-Null")
-                .spawn();
-        }
-    });
-
-    let client = reqwest::Client::builder()
+let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(4))
         .user_agent("HimariEngine/7.4 (personal-ai-companion)")
         .build()
@@ -469,20 +472,7 @@ fn execute_system_skill(command: &str) -> Option<&'static str> {
             println!("{}", format!("🎵 [MUSIC SKILL] Mencari lagu di YouTube: {}", query).green());
             let q_clone = query.to_string();
             tokio::spawn(async move {
-                    // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar (Silent Out-Null)
-    tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(2500)).await;
-        loop {
-            tokio::time::sleep(Duration::from_millis(2000)).await;
-            let _ = Command::new("powershell")
-                .arg("-NoProfile")
-                .arg("-Command")
-                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) } | Out-Null")
-                .spawn();
-        }
-    });
-
-    let client = reqwest::Client::builder()
+let client = reqwest::Client::builder()
                     .timeout(Duration::from_secs(6))
                     .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
                     .build()
@@ -536,20 +526,7 @@ fn execute_system_skill(command: &str) -> Option<&'static str> {
 // --- SELF-LEARNING & CONTEXT COMPACTION (BACKGROUND TOKIO TASKS) ---
 fn spawn_self_learning(user_text: String) {
     tokio::spawn(async move {
-            // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar (Silent Out-Null)
-    tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(2500)).await;
-        loop {
-            tokio::time::sleep(Duration::from_millis(2000)).await;
-            let _ = Command::new("powershell")
-                .arg("-NoProfile")
-                .arg("-Command")
-                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) } | Out-Null")
-                .spawn();
-        }
-    });
-
-    let client = reqwest::Client::builder()
+let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
             .unwrap();
@@ -596,20 +573,7 @@ Jika TIDAK ADA fakta baru yang relevan, jawab persis: "NONE"."#,
 
 fn spawn_context_compaction(turns_to_compact: Vec<ChatMessage>) {
     tokio::spawn(async move {
-            // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar (Silent Out-Null)
-    tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(2500)).await;
-        loop {
-            tokio::time::sleep(Duration::from_millis(2000)).await;
-            let _ = Command::new("powershell")
-                .arg("-NoProfile")
-                .arg("-Command")
-                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) } | Out-Null")
-                .spawn();
-        }
-    });
-
-    let client = reqwest::Client::builder()
+let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(35))
             .build()
             .unwrap();
@@ -1031,7 +995,7 @@ fn add_chat_history_fifo(gui: Arc<Mutex<SharedGuiState>>, role: &str, text: &str
 #[tokio::main]
 async fn main() {
     println!("{}", "====================================================================".magenta());
-    println!("{}", "🦀 HIMARI ENGINE v7.5.2: SELF-LEARNING & SKILLS RUNTIME 🦀".bold().magenta());
+    println!("{}", "🦀 HIMARI ENGINE v7.5.3.3: SELF-LEARNING & SKILLS RUNTIME 🦀".bold().magenta());
     println!("{}", "   [Edge App Window • Background Compaction • Windows Native Skills]".cyan());
     println!("{}", "====================================================================".magenta());
 
@@ -1095,20 +1059,16 @@ async fn main() {
             .spawn();
     });
 
-        // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar (Silent Out-Null)
+    // Native Win32 Always-on-Top Loop (0 Process, 0 Memory Leak, Pure C FFI)
     tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(2500)).await;
+        tokio::time::sleep(Duration::from_millis(3000)).await;
         loop {
-            tokio::time::sleep(Duration::from_millis(2000)).await;
-            let _ = Command::new("powershell")
-                .arg("-NoProfile")
-                .arg("-Command")
-                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) } | Out-Null")
-                .spawn();
+            set_himari_window_topmost();
+            tokio::time::sleep(Duration::from_millis(3000)).await;
         }
     });
 
-    let client = reqwest::Client::builder()
+let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(60))
         .build()
         .unwrap();
