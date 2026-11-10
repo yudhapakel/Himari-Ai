@@ -14,6 +14,7 @@ use std::io::{BufRead, BufReader, Cursor};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
@@ -443,11 +444,12 @@ fn execute_system_skill(command: &str) -> Option<&'static str> {
         Some("Menjeda pemutaran musik...")
     } 
     // 3. YouTube Music / Video Autoplay Launcher (Bisa Request Lagu Bebas!)
-    else if cmd.contains("putar") || cmd.contains("puterin") || cmd.contains("setel") || cmd.contains("play") || cmd.contains("lagu") || cmd.contains("musik") {
+    else if cmd.contains("putar") || cmd.contains("puter") || cmd.contains("setel") || cmd.contains("play") || cmd.contains("lagu") || cmd.contains("musik") {
         let triggers = [
-            "putar musik", "puterin musik", "setel musik", "play musik",
-            "putar lagu", "puterin lagu", "setel lagu", "play lagu",
-            "putar", "puterin", "setel", "play", "dengerin lagu", "dengerin musik"
+            "putar musik", "puterin musik", "puter musik", "setelin musik", "setel musik", "play musik",
+            "putar lagu", "puterin lagu", "puter lagu", "setelin lagu", "setel lagu", "play lagu",
+            "dengerin lagu", "dengerin musik",
+            "putar", "puterin", "puter", "setelin", "setel", "play", "lagu", "musik"
         ];
         
         let mut query = "";
@@ -655,6 +657,32 @@ Tolong rangkum inti topik dan peristiwa dalam percakapan di atas menjadi 1-2 kal
             }
         }
     });
+}
+
+
+static LAST_FILLER_INDEX: AtomicUsize = AtomicUsize::new(999);
+
+async fn play_random_thinking_filler(client: &reqwest::Client, gui: Arc<Mutex<SharedGuiState>>) {
+    let fillers: [&str; 8] = [
+        "ちょっとまってね",           // Chotto matte ne (Tunggu sebentar ya)
+        "えっとね、",               // Etto ne... (Emm jadi gini...)
+        "うん、わかったよ！",        // Un, wakatta yo! (Iya, aku paham!)
+        "りょうかいだよ、あなた！",     // Ryoukai da yo, anata! (Siap laksanakan, Sayang!)
+        "すぐやるね！",             // Sugu yaru ne! (Segera kulakukan ya!)
+        "そうですね、",             // Sou desu ne... (Hmm begitu ya...)
+        "ふむふむ、なるほどね、",     // Fumu fumu, naruhodo ne... (Hmm hmm, gitu ya...)
+        "まかせて、あなた！",         // Makasete, anata! (Serahkan padaku, Sayang!)
+    ];
+
+    let last = LAST_FILLER_INDEX.load(Ordering::Relaxed);
+    let mut chosen_idx = rand::random::<usize>() % fillers.len();
+    if chosen_idx == last {
+        chosen_idx = (chosen_idx + 1) % fillers.len();
+    }
+    LAST_FILLER_INDEX.store(chosen_idx, Ordering::Relaxed);
+
+    let chosen_text = fillers[chosen_idx];
+    play_voicevox(client, chosen_text, gui).await;
 }
 
 async fn play_voicevox(client: &reqwest::Client, text_jp: &str, gui: Arc<Mutex<SharedGuiState>>) {
@@ -1003,7 +1031,7 @@ fn add_chat_history_fifo(gui: Arc<Mutex<SharedGuiState>>, role: &str, text: &str
 #[tokio::main]
 async fn main() {
     println!("{}", "====================================================================".magenta());
-    println!("{}", "🦀 HIMARI ENGINE v7.5.1: SELF-LEARNING & SKILLS RUNTIME 🦀".bold().magenta());
+    println!("{}", "🦀 HIMARI ENGINE v7.5.2: SELF-LEARNING & SKILLS RUNTIME 🦀".bold().magenta());
     println!("{}", "   [Edge App Window • Background Compaction • Windows Native Skills]".cyan());
     println!("{}", "====================================================================".magenta());
 
@@ -1329,6 +1357,13 @@ async fn main() {
 
                 // --- 1. FITUR SELF-LEARNING (Background Extraction) ---
                 spawn_self_learning(user_text.clone());
+                // 🗣️ Mainkan Suara Filler Variatif (Non-Repeating) Segera Pas Input Masuk
+                let filler_client = client.clone();
+                let filler_gui = Arc::clone(&gui);
+                tokio::spawn(async move {
+                    play_random_thinking_filler(&filler_client, filler_gui).await;
+                });
+
 
                 // --- 2. FITUR SKILLS SYSTEM NATIVE WINDOWS ---
                 if let Some(skill_desc) = execute_system_skill(&user_text) {
@@ -1550,16 +1585,7 @@ async fn main() {
                     chat_history = [vec![chat_history[0].clone()], remaining].concat();
                 }
 
-                    // Suara filler cepat saat mulai berpikir
-    let filler_client = client.clone();
-    let filler_gui = Arc::clone(&gui);
-    tokio::spawn(async move {
-        // Gunakan frasa jepang sederhana & umum yang 100% cepat di-sintesis VOICEVOX
-        let fillers = ["ちょっとまってね", "えっとね", "そうですね"];
-        let chosen = fillers.choose(&mut rand::thread_rng()).unwrap_or(&"えっとね");
-        play_voicevox(&filler_client, chosen, filler_gui).await;
-    });
-
+                
                 if let Some((jp, id, km)) = query_ollama(&client, &chat_history, Arc::clone(&gui)).await {
                     {
                         let mut g = gui.lock().unwrap();
