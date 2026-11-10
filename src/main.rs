@@ -410,16 +410,69 @@ fn execute_system_skill(command: &str) -> Option<&'static str> {
         }
         Some("Menjeda pemutaran musik...")
     } 
-    // 3. YouTube Music / Lofi Radio Autoplay Launcher (Langsung Berputar Bunyi!)
-    else if cmd.contains("putar musik") || cmd.contains("puterin musik") || cmd.contains("setel musik") || cmd.contains("play musik") || cmd.contains("putar lagu") || cmd.contains("puterin lagu") || cmd.contains("setel lagu") || cmd.contains("play lagu") || cmd.contains("youtube music") || cmd.contains("yt music") || cmd.contains("musik") {
-        // URL video YouTube / Livestream yang LANGSUNG AUTOPLAY berbunyi tanpa klik!
-        let target_url = if cmd.contains("jepang") || cmd.contains("anime") {
-            "https://www.youtube.com/watch?v=5qap5aO4i9A&autoplay=1" // Lofi Anime 24/7
+    // 3. YouTube Music / Video Autoplay Launcher (Bisa Request Lagu Bebas!)
+    else if cmd.contains("putar") || cmd.contains("puterin") || cmd.contains("setel") || cmd.contains("play") || cmd.contains("lagu") || cmd.contains("musik") {
+        let triggers = [
+            "putar musik", "puterin musik", "setel musik", "play musik",
+            "putar lagu", "puterin lagu", "setel lagu", "play lagu",
+            "putar", "puterin", "setel", "play", "dengerin lagu", "dengerin musik"
+        ];
+        
+        let mut query = "";
+        for t in triggers {
+            if let Some(pos) = cmd.find(t) {
+                let after = &cmd[pos + t.len()..];
+                let clean = after.trim().trim_matches(|c: char| !c.is_alphanumeric() && c != ' ');
+                if !clean.is_empty() {
+                    query = clean;
+                    break;
+                }
+            }
+        }
+
+        // Kalau ada request lagu spesifik (misal "puterin lagu yoasobi idol" / "putar lagu queen")
+        if !query.is_empty() {
+            println!("{}", format!("🎵 [MUSIC SKILL] Mencari lagu di YouTube: {}", query).green());
+            let q_clone = query.to_string();
+            tokio::spawn(async move {
+                let client = reqwest::Client::builder()
+                    .timeout(Duration::from_secs(6))
+                    .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                    .build()
+                    .unwrap();
+
+                let search_url = format!("https://www.youtube.com/results?search_query={}", urlencoding::encode(&q_clone));
+                if let Ok(res) = client.get(&search_url).send().await {
+                    if let Ok(html) = res.text().await {
+                        let re_vid = Regex::new(r#"watch\?v=([a-zA-Z0-9_-]{11})"#).unwrap();
+                        if let Some(caps) = re_vid.captures(&html) {
+                            let video_id = &caps[1];
+                            let watch_url = format!("https://www.youtube.com/watch?v={}", video_id);
+                            println!("{}", format!("🚀 [AUTOPLAY] Membuka URL: {}", watch_url).cyan());
+                            let _ = Command::new("powershell")
+                                .arg("-Command")
+                                .arg(format!("Start-Process '{}'", watch_url))
+                                .spawn();
+                            return;
+                        }
+                    }
+                }
+                // Fallback jika scrape gagal: buka pencarian langsung
+                let _ = Command::new("powershell")
+                    .arg("-Command")
+                    .arg(format!("Start-Process '{}'", search_url))
+                    .spawn();
+            });
+            Some("Mencarikan lagu yang Sayang minta dan memutarnya...")
         } else {
-            "https://www.youtube.com/watch?v=jfKfPfyJRdk&autoplay=1" // Lofi Girl beats to relax/study 24/7 (Autoplay!)
-        };
-        let _ = Command::new("cmd").arg("/c").arg("start").arg(target_url).spawn();
-        Some("Memutar radio musik lofi santai untuk Sayang...")
+            // Jika cuma bilang "putar musik" tanpa judul: putar default lofi chill
+            let default_url = "https://www.youtube.com/watch?v=jfKfPfyJRdk";
+            let _ = Command::new("powershell")
+                .arg("-Command")
+                .arg(format!("Start-Process '{}'", default_url))
+                .spawn();
+            Some("Memutarkan lagu santai untuk Sayang...")
+        }
     } 
     // 4. Aplikasi Produktivitas Windows Cepat
     else if cmd.contains("buka notepad") || cmd.contains("catatan") {
