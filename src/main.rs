@@ -205,6 +205,11 @@ impl Default for SharedGuiState {
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
+struct TextChatPayload {
+    text: String,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug)]
 struct NotifyPayload {
     message: String,
     #[serde(default)]
@@ -215,6 +220,7 @@ struct AppContext {
     gui_state: Arc<Mutex<SharedGuiState>>,
     tx_action: tokio::sync::mpsc::Sender<char>,
     tx_notify: tokio::sync::mpsc::Sender<String>,
+    tx_text: tokio::sync::mpsc::Sender<String>,
 }
 
 fn get_memory_path() -> PathBuf {
@@ -307,6 +313,18 @@ fn infer_kaomoji_fallback(text: &str) -> &'static str {
 }
 
 async fn fetch_weather_info() -> Option<String> {
+        // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+        loop {
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            let _ = Command::new("powershell")
+                .arg("-Command")
+                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) }")
+                .spawn();
+        }
+    });
+
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(3))
         .build()
@@ -321,6 +339,18 @@ async fn fetch_weather_info() -> Option<String> {
 }
 
 async fn fetch_wikipedia_search(query: &str) -> Option<String> {
+        // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+        loop {
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            let _ = Command::new("powershell")
+                .arg("-Command")
+                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) }")
+                .spawn();
+        }
+    });
+
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(4))
         .user_agent("HimariEngine/7.4 (personal-ai-companion)")
@@ -435,7 +465,19 @@ fn execute_system_skill(command: &str) -> Option<&'static str> {
             println!("{}", format!("🎵 [MUSIC SKILL] Mencari lagu di YouTube: {}", query).green());
             let q_clone = query.to_string();
             tokio::spawn(async move {
-                let client = reqwest::Client::builder()
+                    // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+        loop {
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            let _ = Command::new("powershell")
+                .arg("-Command")
+                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) }")
+                .spawn();
+        }
+    });
+
+    let client = reqwest::Client::builder()
                     .timeout(Duration::from_secs(6))
                     .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
                     .build()
@@ -489,7 +531,19 @@ fn execute_system_skill(command: &str) -> Option<&'static str> {
 // --- SELF-LEARNING & CONTEXT COMPACTION (BACKGROUND TOKIO TASKS) ---
 fn spawn_self_learning(user_text: String) {
     tokio::spawn(async move {
-        let client = reqwest::Client::builder()
+            // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+        loop {
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            let _ = Command::new("powershell")
+                .arg("-Command")
+                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) }")
+                .spawn();
+        }
+    });
+
+    let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
             .unwrap();
@@ -536,7 +590,19 @@ Jika TIDAK ADA fakta baru yang relevan, jawab persis: "NONE"."#,
 
 fn spawn_context_compaction(turns_to_compact: Vec<ChatMessage>) {
     tokio::spawn(async move {
-        let client = reqwest::Client::builder()
+            // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+        loop {
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            let _ = Command::new("powershell")
+                .arg("-Command")
+                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) }")
+                .spawn();
+        }
+    });
+
+    let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(35))
             .build()
             .unwrap();
@@ -932,18 +998,20 @@ fn add_chat_history_fifo(gui: Arc<Mutex<SharedGuiState>>, role: &str, text: &str
 #[tokio::main]
 async fn main() {
     println!("{}", "====================================================================".magenta());
-    println!("{}", "🦀 HIMARI ENGINE v7.4: SELF-LEARNING & SKILLS RUNTIME 🦀".bold().magenta());
+    println!("{}", "🦀 HIMARI ENGINE v7.5: SELF-LEARNING & SKILLS RUNTIME 🦀".bold().magenta());
     println!("{}", "   [Edge App Window • Background Compaction • Windows Native Skills]".cyan());
     println!("{}", "====================================================================".magenta());
 
     let gui_state = Arc::new(Mutex::new(SharedGuiState::default()));
     let (tx_action, mut rx_action) = tokio::sync::mpsc::channel::<char>(16);
     let (tx_notify, mut rx_notify) = tokio::sync::mpsc::channel::<String>(32);
+    let (tx_text, mut rx_text) = tokio::sync::mpsc::channel::<String>(32);
 
     let app_context = Arc::new(AppContext {
         gui_state: Arc::clone(&gui_state),
         tx_action: tx_action.clone(),
         tx_notify: tx_notify.clone(),
+        tx_text: tx_text.clone(),
     });
 
     // 1. Jalankan Axum Web Server di Background (Port 8765)
@@ -965,6 +1033,10 @@ async fn main() {
             let _ = ctx.tx_action.send('q').await;
             StatusCode::OK
         }))
+                .route("/api/chat/text", post(|State(ctx): State<Arc<AppContext>>, Json(payload): Json<TextChatPayload>| async move {
+            let _ = ctx.tx_text.send(payload.text).await;
+            StatusCode::OK
+        }))
         .route("/api/notify", post(|State(ctx): State<Arc<AppContext>>, Json(payload): Json<NotifyPayload>| async move {
             println!("{}", format!("🔔 Webhook notification received: {}", payload.message).yellow());
             let _ = ctx.tx_notify.send(payload.message).await;
@@ -983,11 +1055,23 @@ async fn main() {
 
     // 2. Buka Jendela App Mode menggunakan Microsoft Edge (Frameless, Clean GUI)
     tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(600)).await;
+        tokio::time::sleep(Duration::from_millis(2500)).await;
         let _ = Command::new("cmd")
             .arg("/c")
             .arg("start msedge --app=http://127.0.0.1:8765 --window-size=820,620")
             .spawn();
+    });
+
+        // Always-on-Top Loop: Menjaga jendela Edge Himari selalu melayang di depan layar
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+        loop {
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            let _ = Command::new("powershell")
+                .arg("-Command")
+                .arg("Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class WinTop { [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags); }'; Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'HIMARI' } | ForEach-Object { [WinTop]::SetWindowPos($_.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 3) }")
+                .spawn();
+        }
     });
 
     let client = reqwest::Client::builder()
@@ -1165,6 +1249,12 @@ async fn main() {
                 }
             }
 
+                        // Input Teks Langsung dari Cyberpunk Text Input Box di Web HUD
+            Some(text_input) = rx_text.recv() => {
+                println!("{}", format!("⌨️ [TEXT INPUT] Diterima dari HUD: {}", text_input).green().bold());
+                let _ = tx_speech.send(text_input).await;
+            }
+
             // Input Suara Pengguna
             Some(user_text) = rx_speech.recv(), if !is_hardware_muted => {
                 if app_state == AppState::VoiceSleep {
@@ -1237,7 +1327,7 @@ async fn main() {
                         g.tool_detail = skill_desc.to_string();
                         g.kaomoji = "(・ω・)b".to_string();
                     }
-                    tokio::time::sleep(Duration::from_millis(600)).await;
+                    tokio::time::sleep(Duration::from_millis(2500)).await;
                     {
                         let mut g = gui.lock().unwrap();
                         g.is_tool_active = false;
@@ -1447,6 +1537,19 @@ async fn main() {
                     let remaining = chat_history[chat_history.len() - 10..].to_vec();
                     chat_history = [vec![chat_history[0].clone()], remaining].concat();
                 }
+
+                    // Mainkan suara filler lembut saat mulai berpikir agar tidak hening kaku
+    let filler_client = client.clone();
+    let filler_gui = Arc::clone(&gui);
+    tokio::spawn(async move {
+        let fillers = [
+            "んー、ちょっと待ってね。",
+            "えっとね、",
+            "そうですね、",
+        ];
+        let chosen = fillers.choose(&mut rand::thread_rng()).unwrap();
+        play_voicevox(&filler_client, chosen, filler_gui).await;
+    });
 
                 if let Some((jp, id, km)) = query_ollama(&client, &chat_history, Arc::clone(&gui)).await {
                     {

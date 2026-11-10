@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>HIMARI SCI-FI CORE // JARVIS HUD v7.3</title>
+  <title>HIMARI COMPANION CORE // HUD v7.5</title>
   <style>
     * {
       margin: 0;
@@ -34,11 +34,11 @@
       z-index: 1;
     }
 
-    /* Top HUD Header */
+    /* Top HUD Header (Bersih, Tanpa Kata Jarvis) */
     header {
       position: relative;
       z-index: 20;
-      padding: 14px 24px;
+      padding: 12px 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -47,29 +47,29 @@
       backdrop-filter: blur(12px);
     }
     .hud-title {
-      font-size: 15px;
+      font-size: 14px;
       letter-spacing: 2px;
       font-weight: 700;
       color: #38bdf8;
       text-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
     .hud-title .dot {
-      width: 10px;
-      height: 10px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
       background: #38bdf8;
       box-shadow: 0 0 10px #38bdf8;
       transition: all 0.3s ease;
     }
     .kaomoji-badge {
-      font-size: 15px;
+      font-size: 14px;
       color: #f472b6;
       background: rgba(244, 114, 182, 0.15);
       border: 1px solid rgba(244, 114, 182, 0.35);
-      padding: 3px 12px;
+      padding: 2px 10px;
       border-radius: 12px;
       text-shadow: 0 0 12px rgba(244, 114, 182, 0.6);
       font-weight: bold;
@@ -78,14 +78,14 @@
     }
     .hud-meta {
       display: flex;
-      gap: 10px;
-      font-size: 13px;
+      gap: 8px;
+      font-size: 12px;
       font-family: monospace;
     }
     .hud-badge {
       background: rgba(15, 23, 42, 0.85);
       border: 1px solid rgba(56, 189, 248, 0.25);
-      padding: 5px 12px;
+      padding: 4px 10px;
       border-radius: 6px;
       display: flex;
       align-items: center;
@@ -162,66 +162,7 @@
       font-family: monospace;
     }
 
-    /* Subtitle Glass Box */
-    footer {
-      position: relative;
-      z-index: 20;
-      padding: 12px 28px 16px;
-    }
-    .subtitle-card {
-      background: rgba(11, 19, 38, 0.85);
-      border: 1px solid rgba(56, 189, 248, 0.25);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 0 16px rgba(56, 189, 248, 0.05);
-      border-radius: 12px;
-      padding: 14px 20px;
-      backdrop-filter: blur(16px);
-      transition: all 0.3s ease;
-    }
-    .sub-jp {
-      font-size: 20px;
-      font-weight: 600;
-      color: #f472b6;
-      text-shadow: 0 0 16px rgba(244, 114, 182, 0.45);
-      margin-bottom: 6px;
-      min-height: 26px;
-      line-height: 1.35;
-      font-family: 'Yu Gothic', 'Hiragino Sans', 'Meiryo', sans-serif;
-    }
-    .sub-id {
-      font-size: 15px;
-      color: #f8fafc;
-      font-weight: 400;
-      min-height: 22px;
-      line-height: 1.45;
-    }
-    .sub-id span.master {
-      color: #fbbf24;
-      font-weight: 600;
-    }
-    .sub-id span.himari {
-      color: #38bdf8;
-      font-weight: 600;
-    }
-
-    /* Bottom Control Bar */
-    .controls-hint {
-      margin-top: 8px;
-      display: flex;
-      justify-content: space-between;
-      font-size: 11px;
-      color: #64748b;
-      font-family: monospace;
-    }
-    .key-tag {
-      background: rgba(30, 41, 59, 0.8);
-      border: 1px solid rgba(148, 163, 184, 0.3);
-      padding: 2px 6px;
-      border-radius: 4px;
-      color: #cbd5e1;
-      font-weight: 600;
-    }
-
-    /* --- Cyberpunk Side Expansion Tool Progress Panel (Emerges from behind Core) --- */
+    /* Tool Progress Card */
     .tool-expansion-card {
       position: absolute;
       left: 50%;
@@ -284,7 +225,115 @@
       100% { transform: translateX(300%); }
     }
 
-    /* --- Chat History Drawer --- */
+    /* Subtitle & Text Input Bar Footer */
+    footer {
+      position: relative;
+      z-index: 20;
+      padding: 8px 24px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .subtitle-card {
+      background: rgba(11, 19, 38, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 0 16px rgba(56, 189, 248, 0.05);
+      border-radius: 10px;
+      padding: 10px 16px;
+      backdrop-filter: blur(16px);
+      transition: all 0.3s ease;
+    }
+    .sub-jp {
+      font-size: 18px;
+      font-weight: 600;
+      color: #f472b6;
+      text-shadow: 0 0 16px rgba(244, 114, 182, 0.45);
+      margin-bottom: 4px;
+      min-height: 24px;
+      line-height: 1.35;
+      font-family: 'Yu Gothic', 'Hiragino Sans', 'Meiryo', sans-serif;
+    }
+    .sub-id {
+      font-size: 14px;
+      color: #f8fafc;
+      font-weight: 400;
+      min-height: 20px;
+      line-height: 1.4;
+    }
+    .sub-id span.master {
+      color: #fbbf24;
+      font-weight: 600;
+    }
+    .sub-id span.himari {
+      color: #38bdf8;
+      font-weight: 600;
+    }
+
+    /* Cyberpunk Interactive Text Input Box */
+    .input-box-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 8px;
+      padding: 4px 12px;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.15);
+      transition: all 0.2s ease;
+    }
+    .input-box-container:focus-within {
+      border-color: #38bdf8;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+    }
+    .chat-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #e0f2fe;
+      font-size: 13px;
+      font-family: inherit;
+      padding: 6px 0;
+    }
+    .chat-input::placeholder {
+      color: #64748b;
+    }
+    .chat-send-btn {
+      background: rgba(56, 189, 248, 0.2);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .chat-send-btn:hover {
+      background: #38bdf8;
+      color: #030408;
+      box-shadow: 0 0 12px #38bdf8;
+    }
+
+    /* Bottom Control Bar */
+    .controls-hint {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #64748b;
+      font-family: monospace;
+      padding: 0 4px;
+    }
+    .key-tag {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: #cbd5e1;
+      font-weight: 600;
+    }
+
+    /* History Drawer */
     .history-drawer {
       position: absolute;
       top: 0; right: -380px;
@@ -376,57 +425,61 @@
   <header>
     <div class="hud-title">
       <div class="dot" id="hudDot"></div>
-      <span>HIMARI CORE // HUD v7.3</span>
+      <span>HIMARI CORE // HUD v7.5</span>
       <span class="kaomoji-badge" id="hudKaomoji">(｡•̀ᴗ-)✧</span>
     </div>
     <div class="hud-meta">
-      <div class="hud-badge btn-history" id="btnHistory">📜 RIWAYAT CHAT</div>
-      <div class="hud-badge btn-mute" id="btnMute">🔇 MUTE [M]</div>
-      <div class="hud-badge btn-switch" id="btnSwitch">🔄 SWITCH MIC [S]</div>
+      <div class="hud-badge btn-history" id="btnHistory">📜 RIWAYAT</div>
+      <div class="hud-badge btn-mute" id="btnMute">🎙️ MUTE [M]</div>
+      <div class="hud-badge btn-switch" id="btnSwitch">🔄 SWITCH [S]</div>
     </div>
   </header>
 
-  <!-- Jarvis Visualizer Canvas & Emergent Tool Panel -->
+  <!-- Visualizer Canvas & Tool Panel -->
   <div class="visualizer-container" id="visualizerContainer">
-    <canvas id="coreCanvas" width="420" height="420"></canvas>
+    <canvas id="coreCanvas" width="400" height="400"></canvas>
     <div class="core-status-box">
       <div class="core-status-label" id="coreLabel">ONLINE</div>
       <div class="core-sub-label" id="micDeviceSub">MIC: IEM (USB AUDIO)</div>
     </div>
 
-    <!-- Cyberpunk Tool Progress Card (Emerges from behind Core to the right) -->
+    <!-- Tool Progress Card -->
     <div class="tool-expansion-card" id="toolExpansionCard">
       <div class="tool-card-header">
-        <span>🌐 TOOL EXECUTION PROGRESS</span>
+        <span>⚡ ACTION EXECUTION</span>
       </div>
-      <div class="tool-card-detail" id="toolDetailText">Mencari informasi di internet...</div>
+      <div class="tool-card-detail" id="toolDetailText">Memproses perintah...</div>
       <div class="tool-progress-bar-bg">
         <div class="tool-progress-bar-fill"></div>
       </div>
     </div>
   </div>
 
-  <!-- Subtitle Glass Box -->
+  <!-- Subtitle & Text Input Box -->
   <footer>
     <div class="subtitle-card">
-      <div class="sub-jp" id="subJp">あなた、お疲れ様です。そばにいますね。</div>
+      <div class="sub-jp" id="subJp">あなた、お疲れ様です。ずっとそばにいますからね。</div>
       <div class="sub-id" id="subId"><span class="himari">Himari:</span> "Sayang, istirahat ya. Aku akan selalu ada di sampingmu."</div>
     </div>
+
+    <form class="input-box-container" id="chatForm" onsubmit="handleSendText(event)">
+      <input type="text" class="chat-input" id="chatInput" placeholder="Ketik perintah atau request lagu di sini... (tekan Enter)" autocomplete="off" />
+      <button type="submit" class="chat-send-btn">KIRIM</button>
+    </form>
+
     <div class="controls-hint">
-      <div>Tekan <span class="key-tag">H</span> Riwayat &nbsp;|&nbsp; <span class="key-tag">M</span> Mute &nbsp;|&nbsp; <span class="key-tag">S</span> Ganti Mic (PC/HP)</div>
-      <div>Tekan <span class="key-tag">ESC</span> Keluar Aplikasi</div>
+      <div><span class="key-tag">H</span> Riwayat &nbsp;|&nbsp; <span class="key-tag">M</span> Mute &nbsp;|&nbsp; <span class="key-tag">S</span> Mic &nbsp;|&nbsp; Selalu Melayang (Always-on-Top)</div>
+      <div>Tekan <span class="key-tag">ESC</span> Keluar</div>
     </div>
   </footer>
 
   <!-- History Drawer -->
   <div class="history-drawer" id="historyDrawer">
     <div class="history-header">
-      <span>💬 RIWAYAT 10 PESAN TERAKHIR (FIFO)</span>
-      <span class="history-close-btn" id="historyCloseBtn">✖</span>
+      <span>💬 RIWAYAT 10 PESAN TERAKHIR</span>
+      <span class="history-close-btn" id="historyCloseBtn">✕</span>
     </div>
-    <div class="history-body" id="historyList">
-      <!-- Chat bubbles injected via JS -->
-    </div>
+    <div class="history-body" id="historyList"></div>
   </div>
 
   <script>
@@ -447,6 +500,7 @@
     const historyList = document.getElementById('historyList');
     const toolExpansionCard = document.getElementById('toolExpansionCard');
     const toolDetailText = document.getElementById('toolDetailText');
+    const chatInput = document.getElementById('chatInput');
 
     let state = {
       status_text: 'ONLINE',
@@ -467,7 +521,6 @@
     let rotation = 0;
     let pulse = 0;
 
-    // Toggle Chat History Drawer
     function toggleDrawer(open) {
       if (open === undefined) {
         historyDrawer.classList.toggle('open');
@@ -489,8 +542,28 @@
       fetch('/api/action/switch', { method: 'POST' });
     });
 
-    // Keyboard Shortcuts
+    async function handleSendText(e) {
+      e.preventDefault();
+      const text = chatInput.value.trim();
+      if (!text) return;
+      chatInput.value = '';
+      try {
+        await fetch('/api/chat/text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+      } catch (err) {
+        console.error('Gagal kirim pesan teks:', err);
+      }
+    }
+
     window.addEventListener('keydown', async (e) => {
+      if (document.activeElement === chatInput) {
+        if (e.key === 'Escape') chatInput.blur();
+        return;
+      }
+
       const key = e.key.toLowerCase();
       if (key === 'm') {
         fetch('/api/action/mute', { method: 'POST' });
@@ -498,6 +571,9 @@
         fetch('/api/action/switch', { method: 'POST' });
       } else if (key === 'h') {
         toggleDrawer();
+      } else if (key === '/' || key === 'enter') {
+        e.preventDefault();
+        chatInput.focus();
       } else if (key === 'escape') {
         if (historyDrawer.classList.contains('open')) {
           toggleDrawer(false);
@@ -508,7 +584,6 @@
       }
     });
 
-    // Update Chat History List dengan Fingerprint Compare agar FIFO selalu ter-render mulus
     let lastHistoryFingerprint = '';
     function updateHistoryUI(history) {
       if (!history || history.length === 0) {
@@ -534,34 +609,33 @@
       historyList.scrollTop = historyList.scrollHeight;
     }
 
-    // Render Animasi Canvas Geometri Jarvis
     function render() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
 
       let speed = 0.012;
-      let themeColor = '#38bdf8'; // Cyan Default
+      let themeColor = '#38bdf8';
       let glowColor = 'rgba(56, 189, 248, 0.4)';
 
       if (state.is_muted) {
-        themeColor = '#ef4444'; // Red
+        themeColor = '#ef4444';
         glowColor = 'rgba(239, 68, 68, 0.5)';
         speed = 0.004;
       } else if (state.is_sleeping) {
-        themeColor = '#a855f7'; // Purple
+        themeColor = '#a855f7';
         glowColor = 'rgba(168, 85, 247, 0.4)';
         speed = 0.006;
       } else if (state.status_text === 'STANDBY') {
-        themeColor = '#64748b'; // Slate Gray
+        themeColor = '#64748b';
         glowColor = 'rgba(100, 116, 139, 0.4)';
         speed = 0.008;
       } else if (state.is_thinking) {
-        themeColor = '#f59e0b'; // Gold
+        themeColor = '#f59e0b';
         glowColor = 'rgba(245, 158, 11, 0.6)';
         speed = 0.04;
       } else if (state.is_speaking) {
-        themeColor = '#06b6d4'; // Bright Cyan
+        themeColor = '#06b6d4';
         glowColor = 'rgba(6, 182, 212, 0.7)';
         speed = 0.025;
       }
@@ -570,35 +644,32 @@
       pulse += 0.05;
 
       const dynamicRadius = state.is_speaking 
-        ? 86 + Math.sin(pulse * 3) * 12 
-        : (state.is_thinking ? 86 + Math.cos(pulse * 6) * 6 : 80 + Math.sin(pulse) * 3);
+        ? 82 + Math.sin(pulse * 3) * 12 
+        : (state.is_thinking ? 82 + Math.cos(pulse * 6) * 6 : 78 + Math.sin(pulse) * 3);
 
       ctx.save();
       ctx.shadowBlur = 18;
       ctx.shadowColor = themeColor;
 
-      // Outer Glow Ring
       ctx.strokeStyle = glowColor;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(cx, cy, dynamicRadius + 44, 0, Math.PI * 2);
+      ctx.arc(cx, cy, dynamicRadius + 40, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Rotating Outer Hexagon
       ctx.strokeStyle = themeColor;
       ctx.lineWidth = 2;
       ctx.beginPath();
       for (let i = 0; i < 6; i++) {
         const angle = rotation + (i * Math.PI / 3);
-        const x = cx + Math.cos(angle) * (dynamicRadius + 24);
-        const y = cy + Math.sin(angle) * (dynamicRadius + 24);
+        const x = cx + Math.cos(angle) * (dynamicRadius + 22);
+        const y = cy + Math.sin(angle) * (dynamicRadius + 22);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
       ctx.closePath();
       ctx.stroke();
 
-      // Counter-rotating Inner Triangle
       ctx.strokeStyle = glowColor;
       ctx.lineWidth = 1.8;
       ctx.beginPath();
@@ -612,16 +683,14 @@
       ctx.closePath();
       ctx.stroke();
 
-      // Pulsing Core Circle
       ctx.beginPath();
       ctx.arc(cx, cy, dynamicRadius, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Tech Orbit Nodes
       for (let i = 0; i < 4; i++) {
         const nodeAngle = rotation * 2 + (i * Math.PI / 2);
-        const nx = cx + Math.cos(nodeAngle) * (dynamicRadius + 44);
-        const ny = cy + Math.sin(nodeAngle) * (dynamicRadius + 44);
+        const nx = cx + Math.cos(nodeAngle) * (dynamicRadius + 40);
+        const ny = cy + Math.sin(nodeAngle) * (dynamicRadius + 40);
         ctx.fillStyle = themeColor;
         ctx.beginPath();
         ctx.arc(nx, ny, 3, 0, Math.PI * 2);
@@ -633,47 +702,45 @@
     }
     requestAnimationFrame(render);
 
-    // Sync State Real-Time dari Rust Backend (200ms)
     async function syncState() {
       try {
         const res = await fetch('/api/state');
         if (res.ok) {
           state = await res.json();
 
-          // 1. Label Status & Warna
           if (state.is_muted) {
             coreLabel.innerText = 'MIC MUTED';
             coreLabel.style.color = '#ef4444';
             btnMute.classList.add('active');
-            btnMute.innerText = '🔴 UNMUTE [M]';
+            btnMute.innerText = '🎙️ UNMUTE [M]';
             hudDot.style.background = '#ef4444';
             hudDot.style.boxShadow = '0 0 10px #ef4444';
           } else if (state.is_sleeping) {
             coreLabel.innerText = 'SLEEP MODE';
             coreLabel.style.color = '#a855f7';
             btnMute.classList.remove('active');
-            btnMute.innerText = '🔇 MUTE [M]';
+            btnMute.innerText = '🎙️ MUTE [M]';
             hudDot.style.background = '#a855f7';
             hudDot.style.boxShadow = '0 0 10px #a855f7';
           } else if (state.is_speaking) {
             coreLabel.innerText = 'SPEAKING...';
             coreLabel.style.color = '#06b6d4';
             btnMute.classList.remove('active');
-            btnMute.innerText = '🔇 MUTE [M]';
+            btnMute.innerText = '🎙️ MUTE [M]';
             hudDot.style.background = '#06b6d4';
             hudDot.style.boxShadow = '0 0 10px #06b6d4';
           } else if (state.is_thinking) {
             coreLabel.innerText = 'THINKING...';
             coreLabel.style.color = '#f59e0b';
             btnMute.classList.remove('active');
-            btnMute.innerText = '🔇 MUTE [M]';
+            btnMute.innerText = '🎙️ MUTE [M]';
             hudDot.style.background = '#f59e0b';
             hudDot.style.boxShadow = '0 0 10px #f59e0b';
           } else {
             coreLabel.innerText = state.status_text;
             coreLabel.style.color = state.status_text === 'STANDBY' ? '#64748b' : '#38bdf8';
             btnMute.classList.remove('active');
-            btnMute.innerText = '🔇 MUTE [M]';
+            btnMute.innerText = '🎙️ MUTE [M]';
             hudDot.style.background = state.status_text === 'STANDBY' ? '#64748b' : '#38bdf8';
             hudDot.style.boxShadow = state.status_text === 'STANDBY' ? '0 0 10px #64748b' : '0 0 10px #38bdf8';
           }
@@ -681,7 +748,6 @@
           micDeviceSub.innerText = `MIC: ${state.mic_device.toUpperCase()}`;
           hudKaomoji.innerText = state.kaomoji || '(｡•̀ᴗ-)✧';
 
-          // 2. Subtitle Update
           if (state.sub_jp && state.sub_jp.trim().length > 0) {
             subJp.innerText = state.sub_jp;
           }
@@ -695,22 +761,18 @@
             }
           }
 
-          // 3. Tool Progress Expansion Panel (Emerges from behind Core to the right)
           if (state.is_tool_active) {
             visualizerContainer.classList.add('tool-active');
             toolExpansionCard.classList.add('active');
-            toolDetailText.innerText = state.tool_detail || 'Memindai informasi internet...';
+            toolDetailText.innerText = state.tool_detail || 'Memproses tindakan...';
           } else {
             visualizerContainer.classList.remove('tool-active');
             toolExpansionCard.classList.remove('active');
           }
 
-          // 4. Update Chat History FIFO
           updateHistoryUI(state.history);
         }
-      } catch (err) {
-        // Backend restart / compiling
-      }
+      } catch (err) {}
     }
 
     setInterval(syncState, 200);
