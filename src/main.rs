@@ -763,7 +763,18 @@ async fn play_voicevox(client: &reqwest::Client, text_jp: &str, gui: Arc<Mutex<S
         _ => None,
     };
 
-    let Some(query_data) = query_res else { return; };
+    let Some(mut query_data) = query_res else { return; };
+
+    // [NIGHT OWL GUARD] Dynamic Voice Modulation: Jam 23:00 - 05:00 suara otomatis lebih lembut & pelan
+    let (current_hour, _) = get_local_hour_minute();
+    if current_hour >= 23 || current_hour < 5 {
+        if let Some(obj) = query_data.as_object_mut() {
+            // Turunkan volume ke 60% dan perlambat sedikit agar bernuansa bisikan/lembut
+            obj.insert("volumeScale".to_string(), serde_json::json!(0.60));
+            obj.insert("speedScale".to_string(), serde_json::json!(0.93));
+            obj.insert("pitchScale".to_string(), serde_json::json!(-0.02));
+        }
+    }
 
     let synth_url = format!("{}/synthesis?speaker={}", VOICEVOX_URL, SPEAKER_ID);
     let synth_res = match client.post(&synth_url).json(&query_data).send().await {
@@ -1342,6 +1353,11 @@ let client = reqwest::Client::builder()
     let mut continuous_active_seconds: u64 = 0;
     let mut last_eye_warning = Instant::now();
 
+    // [OKAERI PRESENCE SENSE] Tracker
+    let mut was_user_away = false;
+    let mut last_okaeri_greet = Instant::now() - Duration::from_secs(3600);
+    let mut okaeri_counter: usize = 0;
+
     let mut last_cron_morning = false;
     let mut last_cron_lunch = false;
     let mut last_cron_dinner = false;
@@ -1822,10 +1838,50 @@ let client = reqwest::Client::builder()
                 }
                 last_activity_check = Instant::now();
 
+                // [OKAERI PRESENCE SENSE]
+                // Jika idle >= 20 menit (1.200.000 ms), tandai bahwa user sedang away dari meja
+                if idle_ms >= 1_200_000 {
+                    was_user_away = true;
+                } else if was_user_away && idle_ms < 5_000 {
+                    // User baru saja kembali dan menggerakkan mouse/keyboard!
+                    was_user_away = false;
+                    if last_okaeri_greet.elapsed().as_secs() >= 1200 { // Cooldown 20 menit antar sapaan okaeri
+                        last_okaeri_greet = Instant::now();
+                        let okaeri_greetings: [(&str, &str, &str); 3] = [
+                            (
+                                "おかえり、あなた！休憩はちゃんとできた？また一緒に頑張ろうね！",
+                                "Okaeri, Anata! Istirahatnya udah cukup kan? Yuk lanjut bareng Himari lagi~",
+                                "(´｡• ᵕ •｡`)"
+                            ),
+                            (
+                                "あ、あなた！待ってたよ！無理しないで、自分のペースで進めてね！",
+                                "Ah, Anata! Himari nungguin dari tadi loh~ Jangan dipaksain ya, pelan-pelan aja!",
+                                "(≧◡≦) ♡"
+                            ),
+                            (
+                                "お疲れ様、あなた！戻ってきてくれて嬉しいな。お茶でも飲みながらやろうね？",
+                                "Otsukaresama, Anata! Seneng deh kamu udah balik. Mau ngerjain sambil minum teh hangat?",
+                                "( ˘͈ ᵕ ˘͈ )"
+                            ),
+                        ];
+                        let chosen = okaeri_greetings[okaeri_counter % okaeri_greetings.len()];
+                        okaeri_counter = okaeri_counter.wrapping_add(1);
+
+                        {
+                            let mut g = gui.lock().unwrap();
+                            g.sub_jp = chosen.0.to_string();
+                            g.sub_id = chosen.1.to_string();
+                            g.status_text = "OKAERI GREETING".to_string();
+                            g.kaomoji = chosen.2.to_string();
+                        }
+                        play_voicevox(&client, chosen.0, Arc::clone(&gui)).await;
+                    }
+                }
+
                 // Peringatan lelah mata (90 menit aktif berturut-turut)
                 if continuous_active_seconds >= 5400 && last_eye_warning.elapsed().as_secs() >= 3600 {
                     last_eye_warning = Instant::now();
-                    let _ = tx_notify.send("Sayang, kamu sudah bekerja di depan layar cukup lama. Istirahatkan matamu sejenak dan minum air putih ya...".to_string()).await;
+                    let _ = tx_notify.send("Anata, kamu sudah bekerja di depan layar cukup lama. Istirahatkan matamu sejenak dan minum air putih ya...".to_string()).await;
                 }
 
                 // B. Cronjob Waktu Otomatis (Jam 08:00 Pagi, Jam 12:00 Siang, Jam 19:00 Malam)
