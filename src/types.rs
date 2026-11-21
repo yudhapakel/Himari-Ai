@@ -127,3 +127,22 @@ pub struct AppContext {
     pub tx_notify: mpsc::Sender<String>,
     pub tx_user_intent: mpsc::Sender<String>,
 }
+
+
+/// System health status representation for diagnostics
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HealthStatus {
+    Healthy,
+    Degraded(String),
+    Offline,
+}
+
+impl std::fmt::Display for HealthStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Healthy => write!(f, "healthy"),
+            Self::Degraded(msg) => write!(f, "degraded: {}", msg),
+            Self::Offline => write!(f, "offline"),
+        }
+    }
+}
